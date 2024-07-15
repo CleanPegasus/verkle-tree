@@ -1,0 +1,17 @@
+[package]
+name = "verkle-tree-rust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ark-ff = "=0.4.2"
+ark-test-curves = "0.4.2"
+ark-std = "0.4.0"
+ark-bls12-381 = "0.4.0"
+ark-poly = "0.4.2"
+ark-ec = "0.4.2"
+rand = "0.8.5"
+kzg-commitment = "0.1.3"
+num-bigint = "0.4.6"
