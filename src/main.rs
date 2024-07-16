@@ -98,9 +98,8 @@ impl VerkleTree {
         Self::build_tree_recursively(kzg, &next_level, width)
     }
 
+
     pub fn generate_proof(&self, index: usize, data: F) -> VerkleProof {
-        // let mut node_commitments  = Vec::<G1Affine>::new();
-        let mut proof_nodes = Vec::<ProofNode>::new();
         let mut node_positions = Vec::<usize>::new();
         let mut value_positions = Vec::<usize>::new();
 
@@ -109,43 +108,43 @@ impl VerkleTree {
 
         let depth = self.depth();
 
-        for _ in 0..depth {
+        for _ in 0..=depth {
             node_positions.push(current_node);
             value_positions.push(current_position);
 
-            current_node = current_node / self.width;
             current_position = current_node % self.width;
+            current_node = current_node / self.width;
+            
         }
+        node_positions.reverse();
+        value_positions.reverse();
 
         let mut current_node = self.root.clone().unwrap();
 
-        node_positions.reverse();
-        value_positions.reverse();
-        println!("node_positions: {:?}", node_positions);
-        println!("value_positions: {:?}", value_positions);
+        let mut proofs = Vec::<ProofNode>::new();
+        for (i, &node_position) in node_positions.iter().enumerate() {
+            let current_commitment = current_node.commitment.clone();
+            // assert_eq!(current_commitment, self.root().unwrap());
+            let current_polynomial = current_node.polynomial.clone();
+            let node_to_prove_position = value_positions[i];
+            let data_to_prove = if let Some(children) = current_node.children {
+                let next_node = children[node_to_prove_position].clone();
+                let next_node_commitment = next_node.commitment;
+                current_node = next_node;
+                Self::map_commitment_to_field(&next_node_commitment)
+            } else {
+                data
+            };
+            
+            let points = vec![(F::from(node_to_prove_position as u32), data_to_prove)];
+            let proof = self.kzg.generate_proof(&current_polynomial, &points);
+            println!("Generated Proof");
+            proofs.push(ProofNode { commitment: current_commitment, proof: proof.unwrap(), point: points });
 
-        for (index, &node_position) in node_positions.iter().enumerate() {
-            let commitment = current_node.commitment;
-            let polynomial = current_node.clone().polynomial;
-            let children_node = &current_node.children.clone().unwrap()[node_position];
-            let child_commitment_mapping = Self::map_commitment_to_field(&children_node.commitment);
-            let points = vec![(F::from(index as u64), child_commitment_mapping)];
-            let proof = self.kzg.generate_proof(&polynomial, &points).unwrap();
-            proof_nodes.push(
-                ProofNode {
-                    commitment,
-                    proof,
-                    point: points
-                }
-            );
-            current_node = children_node.clone();
         }
 
-        VerkleProof { proofs: proof_nodes }
+        VerkleProof { proofs }
 
-        
-
-        // unimplemented!()
     }
 
 
@@ -188,7 +187,7 @@ fn generate_random_vec(length: usize) -> Vec<F> {
 }
 fn main() {
     let width = 4 as usize;
-    let datas = generate_random_vec(16 * width);
+    let datas = generate_random_vec(16);
     let verkle_tree = VerkleTree::new(&datas, width);
     println!("root {:?}", verkle_tree.root().unwrap());
     println!("Depth: {}", verkle_tree.depth());
