@@ -2,31 +2,44 @@
 
 use ark_bls12_381::{Bls12_381, Config, Fr as F, Fq, G1Affine, G1Projective, G2Affine, G2Projective};
 use ark_ec::AffineRepr;
+use ark_poly::univariate::DensePolynomial;
 use kzg_commitment::KZGCommitment;
 
 use ark_ff::PrimeField;
 use num_bigint::BigUint;
+use rand::{prelude::SliceRandom, Rng};
 
 
 struct VerkleTree {
     root: Option<VerkleNode>,
-    width: usize
+    width: usize,
+    kzg: KZGCommitment
 }
 
 #[derive(Debug, Clone)]
 struct VerkleNode {
     commitment: G1Affine,
+    polynomial: DensePolynomial<F>,
     children: Option<Vec<VerkleNode>>,
+}
+
+struct VerkleProof {
+    proofs: Vec<ProofNode>
+}
+
+struct ProofNode {
+    commitment: G1Affine,
+    proof: G1Affine,
+    point: Vec<(F, F)>,
 }
 
 impl VerkleTree {
     fn new(datas: &Vec<F>, width: usize) -> Self {
         let kzg = KZGCommitment::new(width);
-        
-        unimplemented!()
+        Self::build_tree(kzg, datas, width)
     }
 
-    fn build_tree(kzg: &KZGCommitment, datas: &Vec<F>, width: usize) -> VerkleTree {
+    fn build_tree(kzg: KZGCommitment, datas: &Vec<F>, width: usize) -> VerkleTree {
         
         if datas.len() <= width {
             let polynomial = KZGCommitment::vector_to_polynomial(datas);
@@ -34,28 +47,28 @@ impl VerkleTree {
             return VerkleTree {
                 root: Some(VerkleNode {
                     commitment,
+                    polynomial,
                     children: None,
                 }),
-                width
+                width,
+                kzg
             };
         }
+        let leaf_nodes = Self::create_leaf_nodes(&kzg, datas, width);
+        let root = Self::build_tree_recursively(&kzg, &leaf_nodes, width);
     
-        // Create leaf nodes
-        let leaf_nodes = Self::create_leaf_nodes(kzg, datas, width);
-    
-        // Recursively build the tree
-        let root = Self::build_tree_recursively(kzg, &leaf_nodes, width);
-    
-        VerkleTree { root: Some(root), width }
+        VerkleTree { root: Some(root), width, kzg }
 
     }
 
     fn create_leaf_nodes(kzg: &KZGCommitment, datas: &Vec<F>, width: usize) -> Vec<VerkleNode> {
+        println!("Building Leaf Nodes");
         datas.chunks(width).map(|chunk| {
             let polynomial = KZGCommitment::vector_to_polynomial(&chunk.to_vec());
             let commitment = kzg.commit_polynomial(&polynomial);
             VerkleNode {
                 commitment,
+                polynomial,
                 children: None
             }
         }).collect()
@@ -70,6 +83,7 @@ impl VerkleTree {
             let commitment = kzg.commit_polynomial(&polynomial);
             VerkleNode {
                 commitment,
+                polynomial,
                 children: Some(chunk.to_vec())
             }
         }).collect()
@@ -80,33 +94,107 @@ impl VerkleTree {
         if nodes.len() == 1 {
             return nodes[0].clone();
         }
-
         let next_level = Self::build_from_nodes(kzg, nodes, width);
-
         Self::build_tree_recursively(kzg, &next_level, width)
+    }
 
+    pub fn generate_proof(&self, index: usize, data: F) -> VerkleProof {
+        // let mut node_commitments  = Vec::<G1Affine>::new();
+        let mut proof_nodes = Vec::<ProofNode>::new();
+        let mut node_positions = Vec::<usize>::new();
+        let mut value_positions = Vec::<usize>::new();
+
+        let mut current_node = index / self.width;
+        let mut current_position = index % self.width;
+
+        let depth = self.depth();
+
+        for _ in 0..depth {
+            node_positions.push(current_node);
+            value_positions.push(current_position);
+
+            current_node = current_node / self.width;
+            current_position = current_node % self.width;
+        }
+
+        let mut current_node = self.root.clone().unwrap();
+
+        node_positions.reverse();
+        value_positions.reverse();
+        println!("node_positions: {:?}", node_positions);
+        println!("value_positions: {:?}", value_positions);
+
+        for (index, &node_position) in node_positions.iter().enumerate() {
+            let commitment = current_node.commitment;
+            let polynomial = current_node.clone().polynomial;
+            let children_node = &current_node.children.clone().unwrap()[node_position];
+            let child_commitment_mapping = Self::map_commitment_to_field(&children_node.commitment);
+            let points = vec![(F::from(index as u64), child_commitment_mapping)];
+            let proof = self.kzg.generate_proof(&polynomial, &points).unwrap();
+            proof_nodes.push(
+                ProofNode {
+                    commitment,
+                    proof,
+                    point: points
+                }
+            );
+            current_node = children_node.clone();
+        }
+
+        VerkleProof { proofs: proof_nodes }
+
+        
+
+        // unimplemented!()
+    }
+
+
+    pub fn verify_proof(&self, proof: Vec<G1Affine>) -> bool {
+        unimplemented!()
     }
 
     fn map_commitment_to_field(g1_point: &G1Affine) -> F {
-        Self::map_fq_to_fr(&(g1_point.x().unwrap() + g1_point.y().unwrap()))
+        let fq_value = g1_point.x().unwrap() + g1_point.y().unwrap();
+        let fq_bigint: BigUint = fq_value.into_bigint().into();
+        F::from_le_bytes_mod_order(&fq_bigint.to_bytes_le())
     }
 
-    fn map_fq_to_fr(fq_value: &Fq) -> F {
-        let fq_bigint = Self::field_to_biguint(fq_value);
-        Self::biguint_to_field(&fq_bigint)
+    pub fn depth(&self) -> usize {
+        let mut depth = 0;
+
+        let mut current_node = self.root.clone().unwrap(); // TODO: error handling
+        while current_node.children.is_some() {
+            depth += 1;
+            current_node = current_node.children.unwrap()[0].clone();
+        }
+        depth
     }
 
-    fn biguint_to_field<F: PrimeField>(big_uint: &BigUint) -> F {
-        F::from_le_bytes_mod_order(&big_uint.to_bytes_le())
-    }
-    
-    fn field_to_biguint<F: PrimeField>(field_elem: &F) -> BigUint {
-        field_elem.into_bigint().into()
+
+    pub fn root(&self) -> Option<G1Affine> {
+        match &self.root {
+            None => None,
+            Some(verkle_node) => Some(verkle_node.commitment)
+        }
     }
 
 
 }
 
+fn generate_random_vec(length: usize) -> Vec<F> {
+    let mut rng = rand::thread_rng();
+    println!("Generating vector with length: {}", length);
+    (0..length).map(|_| F::from(rng.gen_range(-100..=100))).collect()
+}
 fn main() {
-    println!("Hello, world!");
+    let width = 4 as usize;
+    let datas = generate_random_vec(16 * width);
+    let verkle_tree = VerkleTree::new(&datas, width);
+    println!("root {:?}", verkle_tree.root().unwrap());
+    println!("Depth: {}", verkle_tree.depth());
+    let index = 6;
+    let data = datas[index];
+    verkle_tree.generate_proof(index, data);
+
+
 }
