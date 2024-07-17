@@ -2,6 +2,9 @@
 name = "verkle-tree"
 version = "0.1.0"
 edition = "2021"
+authors = ["CleanPegasus <me@cleanpegasus.dev>"]
+description = "A Rust implementation of Verkle Trees, a powerful upgrade to Merkle Trees that offers improved efficiency and reduced proof sizes. This crate provides a robust, performant, and easy-to-use library for creating, manipulating, and verifying Verkle Trees."
+license = "MIT"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
