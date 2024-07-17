@@ -1,5 +1,5 @@
 [package]
-name = "verkle-tree-rust"
+name = "verkle-tree"
 version = "0.1.0"
 edition = "2021"
 
