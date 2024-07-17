@@ -28,7 +28,7 @@ fn main() {
     let index = 0;
     let data_at_index = datas[index];
     let proof = verkle_tree.generate_proof(index, &data_at_index);
-    let is_valid = verkle_tree.verify_proof(&proof, &data_at_index);
+    let is_valid = verkle_tree.verify_proof(&proof);
     assert!(is_valid);
 }
 ```
