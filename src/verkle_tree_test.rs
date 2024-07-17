@@ -68,7 +68,7 @@ mod tests {
         let length = rng.gen_range(2..=20);
         println!("Generating tree with length {} and width {}", length, width);
         let datas = generate_random_vec(length * width);
-        (VerkleTree::new(&datas, width), datas, width, length)
+        (VerkleTree::new(&datas, width).unwrap(), datas, width, length)
     }
 
     fn generate_random_vec(length: usize) -> Vec<F> {

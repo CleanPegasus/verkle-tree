@@ -32,16 +32,19 @@ pub struct ProofNode {
 }
 
 impl VerkleTree {
-    pub fn new(datas: &Vec<F>, width: usize) -> Self {
+    pub fn new(datas: &Vec<F>, width: usize) -> Result<Self, VerkleTreeError> {
         let kzg = KZGCommitment::new(width);
         Self::build_tree(kzg, datas, width)
     }
 
-    fn build_tree(kzg: KZGCommitment, datas: &Vec<F>, width: usize) -> VerkleTree {
+    fn build_tree(kzg: KZGCommitment, datas: &Vec<F>, width: usize) -> Result<VerkleTree, VerkleTreeError> {
+        if datas.len() == 0 {
+          return Err(VerkleTreeError::BuildError);
+        }
         if datas.len() <= width {
             let polynomial = KZGCommitment::vector_to_polynomial(datas);
             let commitment = kzg.commit_polynomial(&polynomial);
-            return VerkleTree {
+            return Ok(VerkleTree {
                 root: Some(VerkleNode {
                     commitment,
                     polynomial,
@@ -49,16 +52,16 @@ impl VerkleTree {
                 }),
                 width,
                 kzg,
-            };
+            });
         }
         let leaf_nodes = Self::create_leaf_nodes(&kzg, datas, width);
         let root = Self::build_tree_recursively(&kzg, &leaf_nodes, width);
 
-        VerkleTree {
+        Ok(VerkleTree {
             root: Some(root),
             width,
             kzg,
-        }
+        })
     }
 
     fn create_leaf_nodes(kzg: &KZGCommitment, datas: &Vec<F>, width: usize) -> Vec<VerkleNode> {
