@@ -65,7 +65,6 @@ impl VerkleTree {
     }
 
     fn create_leaf_nodes(kzg: &KZGCommitment, datas: &Vec<F>, width: usize) -> Vec<VerkleNode> {
-        println!("Building Leaf Nodes");
         datas
             .chunks(width)
             .map(|chunk| {
@@ -169,18 +168,16 @@ impl VerkleTree {
         Ok(VerkleProof { proofs })
     }
 
-    pub fn verify_proof(&self, verkle_proof: &VerkleProof) -> bool {
+    pub fn verify_proof(root: G1Affine, verkle_proof: &VerkleProof, width: usize) -> bool {
         let proof_root = verkle_proof.proofs[0].commitment;
-        if proof_root != self.root_commitment().unwrap() {
+        if proof_root != root {
             return false;
         }
+        let kzg = KZGCommitment::new(width);
         let verkle_proofs = verkle_proof.proofs.clone();
         for proof in verkle_proofs {
-            if !self
-                .kzg
-                .verify_proof(&proof.commitment, &proof.point, &proof.proof)
-            {
-                return false;
+            if !kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof){
+                return  false;
             }
         }
         true

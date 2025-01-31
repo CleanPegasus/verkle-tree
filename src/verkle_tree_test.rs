@@ -44,7 +44,8 @@ mod tests {
         let ranom_index = rng.gen_range(0..=length * width);
         let random_point = datas[ranom_index];
         let proof = tree.generate_proof(ranom_index, &random_point).unwrap();
-        let verification = tree.verify_proof(&proof);
+        let root = VerkleTree::root_commitment(&tree).unwrap();
+        let verification = VerkleTree::verify_proof(root, &proof, width);
 
         assert!(verification, "Given point should generate a valid proof");
     }
@@ -57,7 +58,8 @@ mod tests {
         let ranom_index = rng.gen_range(0..=length * width);
         let random_point = datas[ranom_index];
         let proof = invalid_tree.generate_proof(ranom_index, &random_point);
-        let verification = tree.verify_proof(&proof.unwrap());
+        let root = VerkleTree::root_commitment(&tree).unwrap();
+        let verification = VerkleTree::verify_proof(root,&proof.unwrap(), width);
 
         assert_eq!(verification, false, "Should not accept invalid proof");
     }
