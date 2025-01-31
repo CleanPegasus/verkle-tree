@@ -28,7 +28,7 @@ fn main() {
     let index = 0;
     let data_at_index = datas[index];
     let proof = verkle_tree.generate_proof(index, &data_at_index);
-    let root = VerkleTree::root_commitment(&tree).unwrap();
+    let root = VerkleTree::root_commitment(&verkle_tree).unwrap();
     let is_valid = VerkleTree::verify_proof(root, &proof, width);
     assert!(is_valid);
 }
