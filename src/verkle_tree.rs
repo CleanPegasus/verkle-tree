@@ -295,7 +295,7 @@ impl VerkleTree {
         if proof_root != root {
             return false;
         }
-        let kzg = KZGCommitment::new(width);
+        let kzg = KZGCommitment::new(width+1);
         let verkle_proofs = verkle_proof.proofs.clone();
         for proof in verkle_proofs {
             if !kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof){
