@@ -3,7 +3,7 @@ mod tests {
 
     use crate::VerkleTree;
     use ark_bls12_381::Fr as F;
-    use rand::{prelude::SliceRandom, Rng};
+    use rand::Rng;
 
     #[test]
     fn test_build_tree() {
@@ -26,7 +26,7 @@ mod tests {
 
     #[test]
     fn test_generate_invalid_proof() {
-        let (tree, datas, length, width) = build_verkle_tree();
+        let (tree, _datas, length, width) = build_verkle_tree();
         let mut rng = rand::thread_rng();
         let ranom_index = rng.gen_range(0..=length * width);
         let fake_point = F::from(rng.gen_range(-100..=100));
@@ -79,5 +79,25 @@ mod tests {
         (0..length)
             .map(|_| F::from(rng.gen_range(-100..=100)))
             .collect()
+    }
+
+    #[test]
+    fn test_batch_proof (){
+        let mut datas: Vec<F> = Vec::new();
+        for i in 0..27{
+            datas.push(F::from(i));
+        }
+
+        let indexes: Vec<usize> = vec![1,2,6,12,15,16];
+        let width: usize = 3;
+
+        let tree = VerkleTree::new(&datas, width).unwrap();
+
+
+
+        //let path = VerkleTree::create_index_for_proof(indexes.clone(), width, depth);
+        let proof = VerkleTree::generate_batch_proof(&tree, indexes, &datas);
+        println!("{:?}", proof);
+
     }
 }

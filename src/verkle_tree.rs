@@ -1,10 +1,14 @@
-use ark_bls12_381::{Bls12_381, Config, Fq, Fr as F, G1Affine};
+use std::{collections::HashSet, vec};
+
+use ark_bls12_381::{Fr as F, G1Affine};
 use ark_ec::AffineRepr;
 use ark_poly::univariate::DensePolynomial;
 use kzg_commitment::KZGCommitment;
 
 use ark_ff::PrimeField;
 use num_bigint::BigUint;
+
+use recursive::recursive;
 
 pub struct VerkleTree {
     root: Option<VerkleNode>,
@@ -55,6 +59,9 @@ impl VerkleTree {
             });
         }
         let leaf_nodes = Self::create_leaf_nodes(&kzg, datas, width);
+        // for i in 0.. leaf_nodes.len(){
+        //     println!("leaf node {} of build_tree {:?}", i, leaf_nodes[i]);
+        // }
         let root = Self::build_tree_recursively(&kzg, &leaf_nodes, width);
 
         Ok(VerkleTree {
@@ -136,7 +143,7 @@ impl VerkleTree {
         let mut current_node = self.root.clone().unwrap();
 
         let mut proofs = Vec::<ProofNode>::new();
-        for (i, &node_position) in node_positions.iter().enumerate() {
+        for (i, &_node_position) in node_positions.iter().enumerate() {
             let current_commitment = current_node.commitment.clone();
             // assert_eq!(current_commitment, self.root().unwrap());
             let current_polynomial = current_node.polynomial.clone();
@@ -168,6 +175,121 @@ impl VerkleTree {
         Ok(VerkleProof { proofs })
     }
 
+    pub fn create_index_for_proof(index: Vec<usize>, width: usize, depth: usize, tree_proofs: &mut Vec<Vec<Vec<ProofNode>>>) -> Vec<Vec<Vec<usize>>> {
+        /* This creates a vector of the form:
+            [[[2, 0]], [[1, 2], [], [0]]] 
+            It has lenght 2, this indicates that there are 2 layers in the tree
+            The root is implicit indicated, on place 0 there is [[2,0]] which indicates that 
+            children 0 and 2 of the root need to be proven.
+            The next layer, there is [[1, 2], [], [0]] which indicates that
+            for the first child [1,2] need to be proven, for the next child nothing needs to be proven
+            and for the last child only index [0] needs to be proven.
+         */
+        let mut tree_path: Vec<Vec<Vec<usize>>>  = Vec::new();
+        let mut indexes = index.clone();
+        for level in 1.. (depth+1){
+            let data_level_above = width.pow((depth+1-level) as u32);
+            // This creates for each parent node an empty vector
+            let mut level_above: Vec<Vec<usize>> = vec![vec![]; data_level_above];
+            let level_above_proofs: Vec<Vec<ProofNode>>= vec![vec![]; data_level_above];
+            let mut new_indices: HashSet<usize> = HashSet::new();
+            /* The loop adds the index of the child that needs to be proven in the vector of the parent node
+                This is done modulus the width of the tree. 
+                Also the loop creates a vector for the indices of the parent node for the next layer*/
+            for i in 0.. indexes.len(){
+                level_above[indexes[i] / width].push(indexes[i]% width);
+                new_indices.insert(indexes[i]/ width);
+            }
+            tree_path.push(level_above);
+            tree_proofs.push(level_above_proofs);
+            indexes = new_indices.into_iter().collect();
+             
+        }
+        // We need to add the root manually
+        let mut node_root: Vec<usize> = Vec::new();
+        for child in 0.. width{
+            if !tree_path[tree_path.len()-1][child].is_empty(){
+                node_root.push(child);
+            }
+        }
+        tree_path.push(vec![node_root]);
+        tree_proofs.push(vec![vec![]]);
+        tree_path.reverse();
+        tree_proofs.reverse();
+        tree_path
+    }
+
+    #[recursive]
+    pub fn batch_proof_layer_vector (&self, current_node: VerkleNode, node_ind: usize, tree_path: Vec<Vec<Vec<usize>>>, data: &Vec<F>, index_leaf: usize, tree_proofs: &mut Vec<Vec<Vec<ProofNode>>>) -> Result<ProofNode, VerkleTreeError>  {
+
+
+        // The first vector tells whihc indices we need to proof. 
+        let index_to_prove: &Vec<usize> = &tree_path[0][node_ind];
+        let mut points: Vec<(F,F)>= Vec::new();
+        
+        //If the node has children we continue down the tree, if the none has no children we go to the leaf case
+        if let Some(children)= current_node.children{
+            for ind in index_to_prove{
+                // Collect the children and their commitment value
+                let next_node: VerkleNode = children[*ind].clone();
+                let next_node_commitment: F = Self::map_commitment_to_field(&next_node.commitment);
+                // We need to batch proof these later
+                points.push((F::from(*ind as u32), next_node_commitment));
+                // We need to proof some children of the children nodes as well. Tey are in the next layer, so we pop the first element.
+                let mut tree_path_next_layer: Vec<Vec<Vec<usize>>> = tree_path.clone().drain(1..).collect();
+                
+                /* The first vector of the next layer starts at the beginning of the tree.
+                We want it to start at the index we might be interested in */
+                let ind_node: usize = index_leaf+ node_ind* usize::pow(self.width, (tree_path.len()-1) as u32);
+                //println!("index least leaf {}", ind_node);
+                tree_path_next_layer[0] = tree_path_next_layer[0].clone().drain(ind_node ..).collect();
+
+                /* To find the right index of the leaf later we keep the counter. 
+                This indicates the least index of the leaves under the current node */
+                let ind_leaf: usize = index_leaf+ node_ind* usize::pow(self.width, tree_path.len() as u32);
+                self.batch_proof_layer_vector(next_node, *ind, tree_path_next_layer, data, ind_leaf, tree_proofs).expect("failed tree");
+            }
+        }
+        else {
+            // leaf case
+            for ind in index_to_prove{
+                let index_data: usize = ind+index_leaf+ (self.width* node_ind);
+                points.push((F::from(*ind as u32), data[index_data]));
+            }
+        }
+        let current_polynomial = current_node.polynomial.clone();
+        let proof = self.kzg.generate_proof(&current_polynomial, &points);
+        let current_commitment = current_node.commitment.clone();
+        let mut outp: Vec<ProofNode> = Vec::new();
+        match proof {
+            Ok(proof) => {
+                outp.push(ProofNode {
+                    commitment: current_commitment,
+                    proof: proof,
+                    point: points,
+                });
+            }
+            Err(_) => return Err(VerkleTreeError::ProofGenerateError),
+            
+        }
+        tree_proofs[self.depth()-(tree_path.len()-1)][(index_leaf/ self.width )+ node_ind].push(outp[0].clone());
+        Ok(outp[0].clone())
+    }
+
+    pub fn generate_batch_proof(&self, index: Vec<usize>, data: &Vec<F>) -> Vec<Vec<Vec<ProofNode>>> {
+
+        let depth = self.depth();
+        //println!("depth {}", depth);
+        let mut tree_proofs: Vec<Vec<Vec<ProofNode>>>  = Vec::new();
+        let tree_path: Vec<Vec<Vec<usize>>> = Self::create_index_for_proof(index, self.width, depth, &mut tree_proofs);
+
+        let current_node = self.root.clone().unwrap();
+        //self.batch_proof_layer(current_node, 0, tree_path, proofs, data, 0)
+        self.batch_proof_layer_vector(current_node, 0, tree_path, data, 0, &mut tree_proofs).expect("failed to make batch proof");
+        tree_proofs
+    }
+
+
     pub fn verify_proof(root: G1Affine, verkle_proof: &VerkleProof, width: usize) -> bool {
         let proof_root = verkle_proof.proofs[0].commitment;
         if proof_root != root {
@@ -181,6 +303,24 @@ impl VerkleTree {
             }
         }
         true
+    }
+
+    pub fn batch_verify (root: G1Affine, tree_proofs: Vec<Vec<Vec<ProofNode>>>, width: usize)  -> bool{
+        if root!= tree_proofs[0][0][0].commitment{
+            return false;
+        }
+        let kzg = KZGCommitment::new(width+1);
+        for i in 0 .. tree_proofs.len(){
+            for j in 0.. tree_proofs[i].len(){
+                for proof in tree_proofs[i][j].clone(){
+                    if !kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof){
+                        return  false;
+                    }
+                }
+            }
+        }
+        true 
+
     }
 
     fn map_commitment_to_field(g1_point: &G1Affine) -> F {
