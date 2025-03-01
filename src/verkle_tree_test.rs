@@ -3,7 +3,7 @@ mod tests {
 
     use crate::VerkleTree;
     use ark_bls12_381::Fr as F;
-    use rand::{prelude::SliceRandom, Rng};
+    use rand::Rng;
 
     #[test]
     fn test_build_tree() {
@@ -26,7 +26,7 @@ mod tests {
 
     #[test]
     fn test_generate_invalid_proof() {
-        let (tree, datas, length, width) = build_verkle_tree();
+        let (tree, _datas, length, width) = build_verkle_tree();
         let mut rng = rand::thread_rng();
         let ranom_index = rng.gen_range(0..=length * width);
         let fake_point = F::from(rng.gen_range(-100..=100));
@@ -44,7 +44,8 @@ mod tests {
         let ranom_index = rng.gen_range(0..=length * width);
         let random_point = datas[ranom_index];
         let proof = tree.generate_proof(ranom_index, &random_point).unwrap();
-        let verification = tree.verify_proof(&proof);
+        let root = VerkleTree::root_commitment(&tree).unwrap();
+        let verification = VerkleTree::verify_proof(root, &proof, width);
 
         assert!(verification, "Given point should generate a valid proof");
     }
@@ -57,7 +58,8 @@ mod tests {
         let ranom_index = rng.gen_range(0..=length * width);
         let random_point = datas[ranom_index];
         let proof = invalid_tree.generate_proof(ranom_index, &random_point);
-        let verification = tree.verify_proof(&proof.unwrap());
+        let root = VerkleTree::root_commitment(&tree).unwrap();
+        let verification = VerkleTree::verify_proof(root,&proof.unwrap(), width);
 
         assert_eq!(verification, false, "Should not accept invalid proof");
     }
@@ -78,4 +80,50 @@ mod tests {
             .map(|_| F::from(rng.gen_range(-100..=100)))
             .collect()
     }
+
+    fn test_batch_proof (data: Vec<F>, indexes: Vec<usize>, width: usize)-> bool{
+        
+
+        let tree = VerkleTree::new(&data, width).expect("make tree");
+
+        let proof = VerkleTree::generate_batch_proof(&tree, indexes, &data);
+        let bol: bool = VerkleTree::batch_verify(tree.root_commitment().unwrap(), proof, width);
+        bol
+
+    }
+
+    #[test]
+    fn test_batch_proof_1() {
+        let mut datas: Vec<F> = Vec::new();
+        for i in 0..i32::pow(3, 3){
+            datas.push(F::from(i));
+        }
+        for i in (1.. datas.len()).step_by(2){
+            datas[i] = F::from(0);
+        }
+
+        let indexes: Vec<usize> = vec![1,2,6, 12,15,16, 25];
+        let width: usize = 3;
+
+        assert!(test_batch_proof(datas, indexes, width));
+    }
+
+    #[test]
+    fn test_batch_proof_2() {
+        
+    let mut datas2: Vec<F> = Vec::new();
+    for i in 0..i32::pow(5, 5){
+        datas2.push(F::from(i));
+    }
+    for i in (1.. datas2.len()).step_by(2){
+        datas2[i] = F::from(0);
+    }
+
+    let indexes2: Vec<usize> = vec![1,2,6, 12,15,16, 25, 33,34,35];
+    let width2: usize = 5;
+
+    assert!(test_batch_proof(datas2, indexes2, width2));
+    }
+    
+
 }
