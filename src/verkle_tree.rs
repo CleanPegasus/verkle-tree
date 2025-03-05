@@ -220,7 +220,7 @@ impl VerkleTree {
     }
 
     #[recursive]
-    pub fn batch_proof_layer_vector (&self, current_node: VerkleNode, node_ind: usize, tree_path: Vec<Vec<Vec<usize>>>, data: &Vec<F>, tree_proofs: &mut Vec<Vec<Vec<ProofNode>>>) -> Result<ProofNode, VerkleTreeError>  {
+    fn batch_proof_layer_vector (&self, current_node: VerkleNode, node_ind: usize, tree_path: Vec<Vec<Vec<usize>>>, data: &Vec<F>, tree_proofs: &mut Vec<Vec<Vec<ProofNode>>>) -> Result<ProofNode, VerkleTreeError>  {
 
         let index_to_prove: &Vec<usize> = &tree_path[0][node_ind];
         let mut points: Vec<(F,F)>= Vec::new();
@@ -282,11 +282,10 @@ impl VerkleTree {
     }
 
     pub fn generate_batch_proof(&self, index: Vec<usize>, data: &Vec<F>) -> Vec<Vec<Vec<ProofNode>>> {
-
-        let depth = self.depth();
+        println!("We apprecieate you want to generate a batch proof");
         //println!("depth {}", depth);
         let mut tree_proofs: Vec<Vec<Vec<ProofNode>>>  = Vec::new();
-        let tree_path: Vec<Vec<Vec<usize>>> = Self::create_index_for_proof(index, self.width, depth, &mut tree_proofs);
+        let tree_path: Vec<Vec<Vec<usize>>> = Self::create_index_for_proof(index, self.width, self.depth(), &mut tree_proofs);
 
         let current_node = self.root.clone().unwrap();
         //self.batch_proof_layer(current_node, 0, tree_path, proofs, data, 0)
