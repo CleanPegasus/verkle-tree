@@ -220,13 +220,20 @@ impl VerkleTree {
     }
 
     #[recursive]
-    pub fn batch_proof_layer_vector (&self, current_node: VerkleNode, node_ind: usize, tree_path: Vec<Vec<Vec<usize>>>, data: &Vec<F>, index_leaf: usize, tree_proofs: &mut Vec<Vec<Vec<ProofNode>>>) -> Result<ProofNode, VerkleTreeError>  {
+    pub fn batch_proof_layer_vector (&self, current_node: VerkleNode, node_ind: usize, tree_path: Vec<Vec<Vec<usize>>>, data: &Vec<F>, tree_proofs: &mut Vec<Vec<Vec<ProofNode>>>) -> Result<ProofNode, VerkleTreeError>  {
 
-
-        // The first vector tells whihc indices we need to proof. 
         let index_to_prove: &Vec<usize> = &tree_path[0][node_ind];
         let mut points: Vec<(F,F)>= Vec::new();
-        
+        let original_lenght_layer_0: usize;
+        if 1 < tree_path.len() {
+            original_lenght_layer_0 = tree_path[1].len()/ self.width;
+        }
+        else {
+            original_lenght_layer_0 = data.len()/ self.width;
+        }
+        let new = tree_path[0].len();
+        let index_node_in_layer = original_lenght_layer_0-new+ node_ind;
+        let index_first_child: usize = index_node_in_layer*self.width;
         //If the node has children we continue down the tree, if the none has no children we go to the leaf case
         if let Some(children)= current_node.children{
             for ind in index_to_prove{
@@ -239,21 +246,18 @@ impl VerkleTree {
                 let mut tree_path_next_layer: Vec<Vec<Vec<usize>>> = tree_path.clone().drain(1..).collect();
                 
                 /* The first vector of the next layer starts at the beginning of the tree.
-                We want it to start at the index we might be interested in */
-                let ind_node: usize = index_leaf+ node_ind* usize::pow(self.width, (tree_path.len()-1) as u32);
-                //println!("index least leaf {}", ind_node);
-                tree_path_next_layer[0] = tree_path_next_layer[0].clone().drain(ind_node ..).collect();
-
+                We want it to start at the index we are interested in */
+                tree_path_next_layer[0] = tree_path_next_layer[0].clone().drain(index_first_child ..).collect();
                 /* To find the right index of the leaf later we keep the counter. 
                 This indicates the least index of the leaves under the current node */
-                let ind_leaf: usize = index_leaf+ node_ind* usize::pow(self.width, tree_path.len() as u32);
-                self.batch_proof_layer_vector(next_node, *ind, tree_path_next_layer, data, ind_leaf, tree_proofs).expect("failed tree");
+                //let ind_leaf: usize = index_leaf+ node_ind* usize::pow(self.width, tree_path.len() as u32);
+                self.batch_proof_layer_vector(next_node, *ind, tree_path_next_layer, data, tree_proofs).expect("failed tree");
             }
         }
         else {
             // leaf case
             for ind in index_to_prove{
-                let index_data: usize = ind+index_leaf+ (self.width* node_ind);
+                let index_data: usize = index_first_child + ind;
                 points.push((F::from(*ind as u32), data[index_data]));
             }
         }
@@ -272,7 +276,7 @@ impl VerkleTree {
             Err(_) => return Err(VerkleTreeError::ProofGenerateError),
             
         }
-        tree_proofs[self.depth()-(tree_path.len()-1)][(index_leaf/ self.width )+ node_ind].push(outp[0].clone());
+        tree_proofs[self.depth()-(tree_path.len()-1)][index_node_in_layer].push(outp[0].clone());
         Ok(outp[0].clone())
     }
 
@@ -285,7 +289,7 @@ impl VerkleTree {
 
         let current_node = self.root.clone().unwrap();
         //self.batch_proof_layer(current_node, 0, tree_path, proofs, data, 0)
-        self.batch_proof_layer_vector(current_node, 0, tree_path, data, 0, &mut tree_proofs).expect("failed to make batch proof");
+        self.batch_proof_layer_vector(current_node, 0, tree_path, data, &mut tree_proofs).expect("failed to make batch proof");
         tree_proofs
     }
 

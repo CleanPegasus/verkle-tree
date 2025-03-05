@@ -4,6 +4,8 @@ mod tests {
     use crate::VerkleTree;
     use ark_bls12_381::Fr as F;
     use rand::Rng;
+    use random_number::random;
+    use rand::prelude::*;
 
     #[test]
     fn test_build_tree() {
@@ -124,6 +126,33 @@ mod tests {
 
     assert!(test_batch_proof(datas2, indexes2, width2));
     }
+
+    #[test]
+    fn test_batch_proof_rand() {
+        let mut datas: Vec<F> = Vec::new();
+        let width: usize = 5;
+        let n: i32 = i32::pow(width as i32, 4);
+        for i in 0..n{
+            datas.push(F::from(random!(0..n)));
+        }
+        let indices: Vec<usize> = (0..=(n-1) as usize).choose_multiple(&mut thread_rng(),(n as f64*0.2) as usize);
+
+        assert!(test_batch_proof(datas, indices, width));
+    }
+
+    #[test]
+    fn test_batch_proof_rand_2() {
+        let mut datas: Vec<F> = Vec::new();
+        let width: usize = 3;
+        let n: i32 = i32::pow(width as i32, 6);
+        for i in 0..n{
+            datas.push(F::from(random!(0..n)));
+        }
+        let indices: Vec<usize> = (0..=(n-1) as usize).choose_multiple(&mut thread_rng(),(n as f64*0.2) as usize);
+
+        assert!(test_batch_proof(datas, indices, width));
+    }
+
     
 
 }
