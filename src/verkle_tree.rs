@@ -225,6 +225,7 @@ impl VerkleTree {
         let index_to_prove: &Vec<usize> = &tree_path[0][node_ind];
         let mut points: Vec<(F,F)>= Vec::new();
         let original_lenght_layer_0: usize;
+        println!("original tree path {}", tree_path.len());
         if 1 < tree_path.len() {
             original_lenght_layer_0 = tree_path[1].len()/ self.width;
         }
