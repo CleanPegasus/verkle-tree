@@ -225,7 +225,6 @@ impl VerkleTree {
         let index_to_prove: &Vec<usize> = &tree_path[0][node_ind];
         let mut points: Vec<(F,F)>= Vec::new();
         let original_lenght_layer_0: usize;
-        println!("original tree path {}", tree_path.len());
         if 1 < tree_path.len() {
             original_lenght_layer_0 = tree_path[1].len()/ self.width;
         }
@@ -281,8 +280,7 @@ impl VerkleTree {
         Ok(outp[0].clone())
     }
 
-    pub fn generate_batch_proof_print (&self, index: Vec<usize>, data: &Vec<F>) -> Vec<Vec<Vec<ProofNode>>> {
-        println!("We apprecieate you want to generate a batch proof");
+    pub fn generate_batch_proof (&self, index: Vec<usize>, data: &Vec<F>) -> Vec<Vec<Vec<ProofNode>>> {
         //println!("depth {}", depth);
         let mut tree_proofs: Vec<Vec<Vec<ProofNode>>>  = Vec::new();
         let tree_path: Vec<Vec<Vec<usize>>> = Self::create_index_for_proof(index, self.width, self.depth(), &mut tree_proofs);
