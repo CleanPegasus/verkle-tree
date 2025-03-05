@@ -281,7 +281,7 @@ impl VerkleTree {
         Ok(outp[0].clone())
     }
 
-    pub fn generate_batch_proof(&self, index: Vec<usize>, data: &Vec<F>) -> Vec<Vec<Vec<ProofNode>>> {
+    pub fn generate_batch_proof_print (&self, index: Vec<usize>, data: &Vec<F>) -> Vec<Vec<Vec<ProofNode>>> {
         println!("We apprecieate you want to generate a batch proof");
         //println!("depth {}", depth);
         let mut tree_proofs: Vec<Vec<Vec<ProofNode>>>  = Vec::new();
