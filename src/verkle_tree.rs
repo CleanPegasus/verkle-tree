@@ -1,4 +1,4 @@
-use std::{collections::HashSet, vec};
+use std::{collections::HashSet, time::Instant, vec};
 
 use ark_bls12_381::{Fr as F, G1Affine};
 use ark_ec::AffineRepr;
@@ -392,17 +392,22 @@ impl VerkleTree {
         assert!(data.len() % self.width == 0, "Please give a tree that is compeletly filled, i.e. log_{{width}}(data) is a natural number");
 
         let mut tree_proofs: Vec<Vec<Vec<ProofNode>>>  = Vec::new();
+        let startpath = Instant::now();
         //let tree_proofs: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>> = Arc::new(Mutex::new(Vec::new()));
         let tree_path: Vec<Vec<Vec<usize>>> = Self::create_index_for_proof(index, self.width, self.depth(), &mut tree_proofs);
+        let endpath = startpath.elapsed();
+        println!("Made the path to prove {:0.3?}", endpath);
         
         let tree_proofs_arc: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>> = Arc::new(Mutex::new(tree_proofs));
         let current_node = self.root.clone().unwrap();
         //self.batch_proof_layer(current_node, 0, tree_path, proofs, data, 0)
+        let startproof = Instant::now();
         self.batch_proof_layer_vector(current_node, 0, tree_path, data, tree_proofs_arc.clone()).expect("failed to make batch proof");
         let tree_proofs_vector:  Vec<Vec<Vec<ProofNode>>> = Arc::try_unwrap(tree_proofs_arc)
         .unwrap()
         .into_inner()
         .unwrap();
+        println!("Made all proves {:0.3?}", startproof.elapsed());
         tree_proofs_vector
     }
 
@@ -444,16 +449,18 @@ impl VerkleTree {
         if root != tree_proofs[0][0][0].commitment {
             return false;
         }
-
+        // .all makes it such that if any verification fails, it stops immediately and returns false
         let kzg = KZGCommitment::new(width + 1);
-
+        let startverify = Instant::now();
         tree_proofs.par_iter().all(|layer| {
             layer.par_iter().all(|node| {
                 node.par_iter().all(|proof| {
                     kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof)
                 })
             })
-        })
+        });
+        println!("end verify {:0.3?}", startverify.elapsed());
+        true
     }
 
 
