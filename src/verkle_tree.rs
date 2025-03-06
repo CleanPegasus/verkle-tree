@@ -334,7 +334,6 @@ impl VerkleTree {
                     let mut locked_points = points.lock().unwrap();
                     locked_points.push((F::from(*ind as u32), next_node_commitment));
                 }
-                //points.lock().unwrap().push((F::from(*ind as u32), next_node_commitment));
                 // We need to proof some children of the children nodes as well. Tey are in the next layer, so we pop the first element.
                 let mut tree_path_next_layer: Vec<Vec<Vec<usize>>> = tree_path.clone().drain(1..).collect();
                 
@@ -384,6 +383,7 @@ impl VerkleTree {
             locked_tree_proofs[self.depth() - (tree_path.len() - 1)][index_node_in_layer].push(outp[0].clone());
         }
         //tree_proofs[self.depth()-(tree_path.len()-1)][index_node_in_layer].push(outp[0].clone());
+        //println!("tree proofs {:?}", tree_proofs);
         Ok(outp[0].clone())
     }
 
@@ -392,22 +392,22 @@ impl VerkleTree {
         assert!(data.len() % self.width == 0, "Please give a tree that is compeletly filled, i.e. log_{{width}}(data) is a natural number");
 
         let mut tree_proofs: Vec<Vec<Vec<ProofNode>>>  = Vec::new();
-        let startpath = Instant::now();
+        //let startpath = Instant::now();
         //let tree_proofs: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>> = Arc::new(Mutex::new(Vec::new()));
         let tree_path: Vec<Vec<Vec<usize>>> = Self::create_index_for_proof(index, self.width, self.depth(), &mut tree_proofs);
-        let endpath = startpath.elapsed();
-        println!("Made the path to prove {:0.3?}", endpath);
+        //let endpath = startpath.elapsed();
+        //println!("Made the path to prove {:0.3?}", endpath);
         
         let tree_proofs_arc: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>> = Arc::new(Mutex::new(tree_proofs));
         let current_node = self.root.clone().unwrap();
         //self.batch_proof_layer(current_node, 0, tree_path, proofs, data, 0)
-        let startproof = Instant::now();
+        //let startproof = Instant::now();
         self.batch_proof_layer_vector(current_node, 0, tree_path, data, tree_proofs_arc.clone()).expect("failed to make batch proof");
         let tree_proofs_vector:  Vec<Vec<Vec<ProofNode>>> = Arc::try_unwrap(tree_proofs_arc)
         .unwrap()
         .into_inner()
         .unwrap();
-        println!("Made all proves {:0.3?}", startproof.elapsed());
+        //println!("Made all proves {:0.3?}", startproof.elapsed());
         tree_proofs_vector
     }
 
@@ -427,23 +427,23 @@ impl VerkleTree {
         true
     }
 
-    // pub fn batch_verify (root: G1Affine, tree_proofs: Vec<Vec<Vec<ProofNode>>>, width: usize)  -> bool{
-    //     if root!= tree_proofs[0][0][0].commitment{
-    //         return false;
-    //     }
-    //     let kzg = KZGCommitment::new(width+1);
-    //     for i in 0 .. tree_proofs.len(){
-    //         for j in 0.. tree_proofs[i].len(){
-    //             for proof in tree_proofs[i][j].clone(){
-    //                 if !kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof){
-    //                     return  false;
-    //                 }
-    //             }
-    //         }
-    //     }
-    //     true 
+    pub fn batch_verify_classic (root: G1Affine, tree_proofs: Vec<Vec<Vec<ProofNode>>>, width: usize)  -> bool{
+        if root!= tree_proofs[0][0][0].commitment{
+            return false;
+        }
+        let kzg = KZGCommitment::new(width+1);
+        for i in 0 .. tree_proofs.len(){
+            for j in 0.. tree_proofs[i].len(){
+                for proof in tree_proofs[i][j].clone(){
+                    if !kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof){
+                        return  false;
+                    }
+                }
+            }
+        }
+        true 
 
-    // }
+    }
 
     pub fn verify_batch_proof(root: G1Affine, tree_proofs: Vec<Vec<Vec<ProofNode>>>, width: usize) -> bool {
         if root != tree_proofs[0][0][0].commitment {
@@ -459,7 +459,7 @@ impl VerkleTree {
                 })
             })
         });
-        println!("end verify {:0.3?}", startverify.elapsed());
+        //println!("end verify {:0.3?}", startverify.elapsed());
         true
     }
 

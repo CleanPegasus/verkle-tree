@@ -85,12 +85,14 @@ mod tests {
 
     #[test]
     fn test_batch_proof_verify() {
-        let (tree, datas, length, width) = build_verkle_tree();
-        let indices: Vec<usize> = (0..=(length * width-1) as usize).choose_multiple(&mut thread_rng(),datas.len()*(0.2)as usize);
-        // let random_point: Vec<F> = Vec::new;
-        // for ind in indices{
-        //     random_point.push(datas[ind]);
-        // }
+        let mut datas: Vec<F> = Vec::new();
+        let width: usize = 5;
+        for i in 0..i32::pow(width as i32, 5){
+            datas.push(F::from(rand::thread_rng().gen_range(0..=datas.len()) as u32));
+        }
+        let tree = VerkleTree::new(&datas, width).unwrap();
+        let indices: Vec<usize> = (0..=(datas.len()-1) as usize).choose_multiple(
+            &mut thread_rng(),((datas.len() as f64) *0.2 )as usize);
         let proof = tree.generate_batch_proof(indices, &datas);
         let root = VerkleTree::root_commitment(&tree).unwrap();
         let verification = VerkleTree::verify_batch_proof(root, proof, width);
