@@ -422,23 +422,41 @@ impl VerkleTree {
         true
     }
 
-    pub fn batch_verify (root: G1Affine, tree_proofs: Vec<Vec<Vec<ProofNode>>>, width: usize)  -> bool{
-        if root!= tree_proofs[0][0][0].commitment{
+    // pub fn batch_verify (root: G1Affine, tree_proofs: Vec<Vec<Vec<ProofNode>>>, width: usize)  -> bool{
+    //     if root!= tree_proofs[0][0][0].commitment{
+    //         return false;
+    //     }
+    //     let kzg = KZGCommitment::new(width+1);
+    //     for i in 0 .. tree_proofs.len(){
+    //         for j in 0.. tree_proofs[i].len(){
+    //             for proof in tree_proofs[i][j].clone(){
+    //                 if !kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof){
+    //                     return  false;
+    //                 }
+    //             }
+    //         }
+    //     }
+    //     true 
+
+    // }
+
+    pub fn verify_batch_proof(root: G1Affine, tree_proofs: Vec<Vec<Vec<ProofNode>>>, width: usize) -> bool {
+        if root != tree_proofs[0][0][0].commitment {
             return false;
         }
-        let kzg = KZGCommitment::new(width+1);
-        for i in 0 .. tree_proofs.len(){
-            for j in 0.. tree_proofs[i].len(){
-                for proof in tree_proofs[i][j].clone(){
-                    if !kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof){
-                        return  false;
-                    }
-                }
-            }
-        }
-        true 
 
+        let kzg = KZGCommitment::new(width + 1);
+
+        tree_proofs.par_iter().all(|layer| {
+            layer.par_iter().all(|node| {
+                node.par_iter().all(|proof| {
+                    kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof)
+                })
+            })
+        })
     }
+
+
 
     fn map_commitment_to_field(g1_point: &G1Affine) -> F {
         let fq_value = g1_point.x().unwrap() + g1_point.y().unwrap();

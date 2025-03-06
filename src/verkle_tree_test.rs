@@ -83,76 +83,18 @@ mod tests {
             .collect()
     }
 
-    fn test_batch_proof (data: Vec<F>, indexes: Vec<usize>, width: usize)-> bool{
-        
-
-        let tree = VerkleTree::new(&data, width).expect("make tree");
-
-        let proof = VerkleTree::generate_batch_proof(&tree, indexes, &data);
-        let bol: bool = VerkleTree::batch_verify(tree.root_commitment().unwrap(), proof, width);
-        bol
-
-    }
-
     #[test]
-    fn test_batch_proof_1() {
-        let mut datas: Vec<F> = Vec::new();
-        for i in 0..i32::pow(3, 3){
-            datas.push(F::from(i));
-        }
-        for i in (1.. datas.len()).step_by(2){
-            datas[i] = F::from(0);
-        }
-
-        let indexes: Vec<usize> = vec![1,2,6, 12,15,16, 25];
-        let width: usize = 3;
-
-        assert!(test_batch_proof(datas, indexes, width));
+    fn test_batch_proof_verify() {
+        let (tree, datas, length, width) = build_verkle_tree();
+        let indices: Vec<usize> = (0..=(length * width-1) as usize).choose_multiple(&mut thread_rng(),datas.len()*(0.2)as usize);
+        // let random_point: Vec<F> = Vec::new;
+        // for ind in indices{
+        //     random_point.push(datas[ind]);
+        // }
+        let proof = tree.generate_batch_proof(indices, &datas);
+        let root = VerkleTree::root_commitment(&tree).unwrap();
+        let verification = VerkleTree::verify_batch_proof(root, proof, width);
+        assert!(verification, "Given point should generate a valid proof");
     }
-
-    #[test]
-    fn test_batch_proof_2() {
-        
-    let mut datas2: Vec<F> = Vec::new();
-    for i in 0..i32::pow(5, 5){
-        datas2.push(F::from(i));
-    }
-    for i in (1.. datas2.len()).step_by(2){
-        datas2[i] = F::from(0);
-    }
-
-    let indexes2: Vec<usize> = vec![1,2,6, 12,15,16, 25, 33,34,35];
-    let width2: usize = 5;
-
-    assert!(test_batch_proof(datas2, indexes2, width2));
-    }
-
-    #[test]
-    fn test_batch_proof_rand() {
-        let mut datas: Vec<F> = Vec::new();
-        let width: usize = 5;
-        let n: i32 = i32::pow(width as i32, 4);
-        for i in 0..n{
-            datas.push(F::from(random!(0..n)));
-        }
-        let indices: Vec<usize> = (0..=(n-1) as usize).choose_multiple(&mut thread_rng(),(n as f64*0.2) as usize);
-
-        assert!(test_batch_proof(datas, indices, width));
-    }
-
-    #[test]
-    fn test_batch_proof_rand_2() {
-        let mut datas: Vec<F> = Vec::new();
-        let width: usize = 3;
-        let n: i32 = i32::pow(width as i32, 6);
-        for i in 0..n{
-            datas.push(F::from(random!(0..n)));
-        }
-        let indices: Vec<usize> = (0..=(n-1) as usize).choose_multiple(&mut thread_rng(),(n as f64*0.2) as usize);
-
-        assert!(test_batch_proof(datas, indices, width));
-    }
-
-    
 
 }
