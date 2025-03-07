@@ -396,7 +396,8 @@ impl VerkleTree {
         node_ind: usize,
         tree_path: Vec<Vec<Vec<usize>>>,
         data: &Vec<F>,
-        tree_proofs: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>>)
+        //tree_proofs: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>>)
+        tree_proofs: Arc<Vec<Vec<Mutex<Vec<ProofNode>>>>>)
         -> Result<ProofNode, VerkleTreeError> 
     {
         let index_to_prove: &Vec<usize> = &tree_path[0][node_ind];
@@ -463,8 +464,11 @@ impl VerkleTree {
             };
 
             // Update tree_proofs safely in parallel
-            let mut locked_tree_proofs = tree_proofs.lock().unwrap();
-            locked_tree_proofs[self.depth() - (tree_path.len() - 1)][index_node_in_layer].push(proof_node.clone());
+            let mut locked_slot = tree_proofs[self.depth() - (tree_path.len() - 1)][index_node_in_layer].lock().unwrap();
+            locked_slot.push(proof_node.clone());
+
+            // let mut locked_tree_proofs = tree_proofs.lock().unwrap();
+            // locked_tree_proofs[self.depth() - (tree_path.len() - 1)][index_node_in_layer].push(proof_node.clone());
 
             return Ok(proof_node);
         } else {
@@ -483,16 +487,37 @@ impl VerkleTree {
         let tree_path: Vec<Vec<Vec<usize>>> = Self::create_index_for_proof(index, self.width, self.depth(), &mut tree_proofs);
         //let endpath = startpath.elapsed();
         //println!("Made the path to prove {:0.3?}", endpath);
+
+        let tree_proofs_arc: Arc<Vec<Vec<Mutex<Vec<ProofNode>>>>> = Arc::new(
+            tree_proofs
+                .into_iter()
+                .map(|layer| {
+                    layer
+                        .into_iter()
+                        .map(|slot| Mutex::new(slot)) // Wrap each slot in a Mutex
+                        .collect()
+                })
+                .collect()
+        );
         
-        let tree_proofs_arc: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>> = Arc::new(Mutex::new(tree_proofs));
+        //let tree_proofs_arc: Arc<Vec<Vec<Mutex<Vec<ProofNode>>>>> = Arc::new(Mutex::new(tree_proofs));
         let current_node = self.root.clone().unwrap();
         //self.batch_proof_layer(current_node, 0, tree_path, proofs, data, 0)
         //let startproof = Instant::now();
         self.batch_proof_layer_vector(current_node, 0, tree_path, data, tree_proofs_arc.clone()).expect("failed to make batch proof");
-        let tree_proofs_vector:  Vec<Vec<Vec<ProofNode>>> = Arc::try_unwrap(tree_proofs_arc)
-        .unwrap()
-        .into_inner()
-        .unwrap();
+        let tree_proofs_vector: Vec<Vec<Vec<ProofNode>>> = tree_proofs_arc
+        .iter()
+        .map(|layer| {
+            layer
+                .iter()
+                .map(|slot| slot.lock().unwrap().clone()) // Lock each slot and clone the inner Vec<ProofNode>
+                .collect()
+        })
+        .collect();
+        // let tree_proofs_vector:  Vec<Vec<Vec<ProofNode>>> = Arc::try_unwrap(tree_proofs_arc)
+        // .unwrap()
+        // .into_inner()
+        // .unwrap();
         //println!("Made all proves {:0.3?}", startproof.elapsed());
         tree_proofs_vector
     }
