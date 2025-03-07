@@ -11,6 +11,7 @@ use num_bigint::BigUint;
 use recursive::recursive;
 
 use rayon::prelude::*;
+use rayon::scope;
 //use rayon::ThreadPoolBuilder;
 use std::sync::{Arc, Mutex};
 
@@ -414,19 +415,21 @@ impl VerkleTree {
 
         if let Some(children) = current_node.children {
             // Parallelize processing of child nodes
-            rayon::scope(|s| {
-                for ind in index_to_prove {
-                    let next_node = children[*ind].clone();
+            scope(|s| {
+                for &ind in index_to_prove {
+                    let next_node = children[ind].clone();
                     let next_node_commitment = Self::map_commitment_to_field(&next_node.commitment);
-            
-                    local_points.push((F::from(*ind as u32), next_node_commitment));
-            
-                    let mut tree_path_next_layer: Vec<Vec<Vec<usize>>> = tree_path.clone().drain(1..).collect();
-                    tree_path_next_layer[0] = tree_path_next_layer[0].clone().drain(index_first_child..).collect();
-            
-                    s.spawn(|_| {
-                        self.batch_proof_layer_vector(next_node, *ind, tree_path_next_layer, data, Arc::clone(&tree_proofs))
-                            .expect("failed tree");
+                    
+                    local_points.push((F::from(ind as u32), next_node_commitment));
+    
+                    let mut tree_path_next_layer: Vec<Vec<Vec<usize>>> = tree_path[1..].to_vec();
+                    tree_path_next_layer[0] = tree_path_next_layer[0][index_first_child..].to_vec();
+    
+                    let tree_proofs_clone = Arc::clone(&tree_proofs);
+                    s.spawn(move |_| {
+                        self.batch_proof_layer_vector(
+                            next_node, ind, tree_path_next_layer, data, tree_proofs_clone
+                        ).expect("failed tree");
                     });
                 }
             });
