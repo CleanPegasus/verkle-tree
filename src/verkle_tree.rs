@@ -11,6 +11,7 @@ use num_bigint::BigUint;
 use recursive::recursive;
 
 use rayon::prelude::*;
+//use rayon::ThreadPoolBuilder;
 use std::sync::{Arc, Mutex};
 
 pub struct VerkleTree {
@@ -294,98 +295,180 @@ impl VerkleTree {
         tree_proofs
     }
 
-    #[recursive]
-    fn batch_proof_layer_vector (&self, current_node: VerkleNode,
-        node_ind: usize, tree_path: Vec<Vec<Vec<usize>>>,
-        data: &Vec<F>, tree_proofs: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>>)
-        -> Result<ProofNode, VerkleTreeError>  {
+    // #[recursive]
+    // fn batch_proof_layer_vector (&self, current_node: VerkleNode,
+    //     node_ind: usize, tree_path: Vec<Vec<Vec<usize>>>,
+    //     data: &Vec<F>, tree_proofs: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>>)
+    //     -> Result<ProofNode, VerkleTreeError>  {
 
-        /*  The three path contains information about what children to prove
-            The first index contains info about the nodes to the right of the current node
-            The next indices of the path contain information about the next layers
-             */ 
-        let index_to_prove: &Vec<usize> = &tree_path[0][node_ind];
-        /*  The index of the current node in the layer can be found
-            by the difference of the original length of the layer and the 
-            current length of the layer. Together with the index of the node. 
-        */
-        let original_lenght_layer_0: usize;
-        if 1 < tree_path.len() {
-            original_lenght_layer_0 = tree_path[1].len()/ self.width;
-        }
-        else {
-            original_lenght_layer_0 = data.len()/ self.width;
-        }
-        let new = tree_path[0].len();
-        let index_node_in_layer = original_lenght_layer_0-new+ node_ind;
-        let index_first_child: usize = index_node_in_layer*self.width;
+    //     /*  The three path contains information about what children to prove
+    //         The first index contains info about the nodes to the right of the current node
+    //         The next indices of the path contain information about the next layers
+    //          */ 
+    //     let index_to_prove: &Vec<usize> = &tree_path[0][node_ind];
+    //     /*  The index of the current node in the layer can be found
+    //         by the difference of the original length of the layer and the 
+    //         current length of the layer. Together with the index of the node. 
+    //     */
+    //     let original_lenght_layer_0: usize;
+    //     if 1 < tree_path.len() {
+    //         original_lenght_layer_0 = tree_path[1].len()/ self.width;
+    //     }
+    //     else {
+    //         original_lenght_layer_0 = data.len()/ self.width;
+    //     }
+    //     let new = tree_path[0].len();
+    //     let index_node_in_layer = original_lenght_layer_0-new+ node_ind;
+    //     let index_first_child: usize = index_node_in_layer*self.width;
 
-        let points = Arc::new(Mutex::new(Vec::new()));
-        //let mut points: Vec<(F,F)>= Vec::new();
-        //If the node has children we continue down the tree, if the none has no children we go to the leaf case
-        if let Some(children)= current_node.children{
-            //for ind in index_to_prove{
-            index_to_prove.par_iter().for_each(|ind| {
-                // Collect the children and their commitment value
-                let next_node: VerkleNode = children[*ind].clone();
-                let next_node_commitment: F = Self::map_commitment_to_field(&next_node.commitment);
-                // We need to batch proof these later
-                {
-                    let mut locked_points = points.lock().unwrap();
-                    locked_points.push((F::from(*ind as u32), next_node_commitment));
-                }
-                // We need to proof some children of the children nodes as well. Tey are in the next layer, so we pop the first element.
-                let mut tree_path_next_layer: Vec<Vec<Vec<usize>>> = tree_path.clone().drain(1..).collect();
+    //     let points = Arc::new(Mutex::new(Vec::new()));
+    //     //let mut points: Vec<(F,F)>= Vec::new();
+    //     //If the node has children we continue down the tree, if the none has no children we go to the leaf case
+    //     if let Some(children)= current_node.children{
+    //         //for ind in index_to_prove{
+    //         index_to_prove.par_iter().for_each(|ind| {
+    //             // Collect the children and their commitment value
+    //             let next_node: VerkleNode = children[*ind].clone();
+    //             let next_node_commitment: F = Self::map_commitment_to_field(&next_node.commitment);
+    //             // We need to batch proof these later
+    //             {
+    //                 let mut locked_points = points.lock().unwrap();
+    //                 locked_points.push((F::from(*ind as u32), next_node_commitment));
+    //             }
+    //             // We need to proof some children of the children nodes as well. Tey are in the next layer, so we pop the first element.
+    //             let mut tree_path_next_layer: Vec<Vec<Vec<usize>>> = tree_path.clone().drain(1..).collect();
                 
-                /* The first vector of the next layer starts at the beginning of the tree.
-                We want it to start at the index we are interested in */
-                tree_path_next_layer[0] = tree_path_next_layer[0].clone().drain(index_first_child ..).collect();
-                /* To find the right index of the leaf later we keep the counter. 
-                This indicates the least index of the leaves under the current node */
-                //let ind_leaf: usize = index_leaf+ node_ind* usize::pow(self.width, tree_path.len() as u32);
+    //             /* The first vector of the next layer starts at the beginning of the tree.
+    //             We want it to start at the index we are interested in */
+    //             tree_path_next_layer[0] = tree_path_next_layer[0].clone().drain(index_first_child ..).collect();
+    //             /* To find the right index of the leaf later we keep the counter. 
+    //             This indicates the least index of the leaves under the current node */
+    //             //let ind_leaf: usize = index_leaf+ node_ind* usize::pow(self.width, tree_path.len() as u32);
 
-                //(F::from(*ind as u32), next_node_commitment)
-                self.batch_proof_layer_vector(next_node, *ind, tree_path_next_layer, data, Arc::clone(&tree_proofs)).expect("failed tree");
-            });
-        }
-        else {
-            // leaf case
-            index_to_prove.par_iter().for_each(|ind|{ 
-                let index_data: usize = index_first_child + ind;
-                let mut locked_points = points.lock().unwrap();
-                locked_points.push((F::from(*ind as u32), data[index_data]));
-            });
-        }
+    //             //(F::from(*ind as u32), next_node_commitment)
+    //             self.batch_proof_layer_vector(next_node, *ind, tree_path_next_layer, data, Arc::clone(&tree_proofs)).expect("failed tree");
+    //         });
+    //     }
+    //     else {
+    //         // leaf case
+    //         index_to_prove.par_iter().for_each(|ind|{ 
+    //             let index_data: usize = index_first_child + ind;
+    //             let mut locked_points = points.lock().unwrap();
+    //             locked_points.push((F::from(*ind as u32), data[index_data]));
+    //         });
+    //     }
 
-        // Convert Arc<Mutex<Vec<T>>> back to Vec<T>
-        let points_vector: Vec<(F,F)> = Arc::try_unwrap(points)
-        .unwrap()
-        .into_inner()
-        .unwrap();
+    //     // Convert Arc<Mutex<Vec<T>>> back to Vec<T>
+    //     let points_vector: Vec<(F,F)> = Arc::try_unwrap(points)
+    //     .unwrap()
+    //     .into_inner()
+    //     .unwrap();
+
+    //     let current_polynomial = current_node.polynomial.clone();
+    //     let proof = self.kzg.generate_proof(&current_polynomial, &points_vector);
+    //     let current_commitment = current_node.commitment.clone();
+    //     let mut outp: Vec<ProofNode> = Vec::new();
+    //     match proof {
+    //         Ok(proof) => {
+    //             outp.push(ProofNode {
+    //                 commitment: current_commitment,
+    //                 proof: proof,
+    //                 point: points_vector,
+    //             });
+    //         }
+    //         Err(_) => return Err(VerkleTreeError::ProofGenerateError),
+            
+    //     }
+    //     {
+    //         let mut locked_tree_proofs = tree_proofs.lock().unwrap();
+    //         locked_tree_proofs[self.depth() - (tree_path.len() - 1)][index_node_in_layer].push(outp[0].clone());
+    //     }
+    //     //tree_proofs[self.depth()-(tree_path.len()-1)][index_node_in_layer].push(outp[0].clone());
+    //     //println!("tree proofs {:?}", tree_proofs);
+    //     Ok(outp[0].clone())
+    // }
+
+    #[recursive]
+    fn batch_proof_layer_vector(
+        &self,
+        current_node: VerkleNode,
+        node_ind: usize,
+        tree_path: Vec<Vec<Vec<usize>>>,
+        data: &Vec<F>,
+        tree_proofs: Arc<Mutex<Vec<Vec<Vec<ProofNode>>>>>)
+        -> Result<ProofNode, VerkleTreeError> 
+    {
+        let index_to_prove: &Vec<usize> = &tree_path[0][node_ind];
+
+        let original_length_layer_0 = if tree_path.len() > 1 {
+            tree_path[1].len() / self.width
+        } else {
+            data.len() / self.width
+        };
+        let new = tree_path[0].len();
+        let index_node_in_layer = original_length_layer_0 - new + node_ind;
+        let index_first_child = index_node_in_layer * self.width;
+
+        // Use a thread-local vector to avoid lock contention
+        let mut local_points = Vec::new();
+
+        if let Some(children) = current_node.children {
+            // Parallelize processing of child nodes
+            rayon::scope(|s| {
+                for ind in index_to_prove {
+                    let next_node = children[*ind].clone();
+                    let next_node_commitment = Self::map_commitment_to_field(&next_node.commitment);
+            
+                    local_points.push((F::from(*ind as u32), next_node_commitment));
+            
+                    let mut tree_path_next_layer: Vec<Vec<Vec<usize>>> = tree_path.clone().drain(1..).collect();
+                    tree_path_next_layer[0] = tree_path_next_layer[0].clone().drain(index_first_child..).collect();
+            
+                    s.spawn(|_| {
+                        self.batch_proof_layer_vector(next_node, *ind, tree_path_next_layer, data, Arc::clone(&tree_proofs))
+                            .expect("failed tree");
+                    });
+                }
+            });
+
+            // // Wait for all spawned threads to complete
+            // for handle in child_proofs {
+            //     handle.join().unwrap();
+            // }
+        } else {
+            // Leaf case: process leaf proofs in parallel
+            local_points.extend(
+                index_to_prove
+                    .par_iter()
+                    .map(|ind| {
+                        let index_data = index_first_child + ind;
+                        (F::from(*ind as u32), data[index_data])
+                    })
+                    .collect::<Vec<_>>(),
+            );
+        }
 
         let current_polynomial = current_node.polynomial.clone();
-        let proof = self.kzg.generate_proof(&current_polynomial, &points_vector);
+        let proof = self.kzg.generate_proof(&current_polynomial, &local_points);
         let current_commitment = current_node.commitment.clone();
-        let mut outp: Vec<ProofNode> = Vec::new();
-        match proof {
-            Ok(proof) => {
-                outp.push(ProofNode {
-                    commitment: current_commitment,
-                    proof: proof,
-                    point: points_vector,
-                });
-            }
-            Err(_) => return Err(VerkleTreeError::ProofGenerateError),
-            
-        }
-        {
+
+        if let Ok(proof) = proof {
+            let proof_node = ProofNode {
+                commitment: current_commitment,
+                proof,
+                point: local_points,
+            };
+
+            // Update tree_proofs safely in parallel
             let mut locked_tree_proofs = tree_proofs.lock().unwrap();
-            locked_tree_proofs[self.depth() - (tree_path.len() - 1)][index_node_in_layer].push(outp[0].clone());
+            locked_tree_proofs[self.depth() - (tree_path.len() - 1)][index_node_in_layer].push(proof_node.clone());
+
+            return Ok(proof_node);
+        } else {
+            return Err(VerkleTreeError::ProofGenerateError);
         }
-        //tree_proofs[self.depth()-(tree_path.len()-1)][index_node_in_layer].push(outp[0].clone());
-        //println!("tree proofs {:?}", tree_proofs);
-        Ok(outp[0].clone())
-    }
+}
+
 
     pub fn generate_batch_proof (&self, index: Vec<usize>, data: &Vec<F>) -> Vec<Vec<Vec<ProofNode>>> {
         //println!("depth {}", depth);
@@ -451,7 +534,7 @@ impl VerkleTree {
         }
         // .all makes it such that if any verification fails, it stops immediately and returns false
         let kzg = KZGCommitment::new(width + 1);
-        let startverify = Instant::now();
+        let _ = Instant::now();
         tree_proofs.par_iter().all(|layer| {
             layer.par_iter().all(|node| {
                 node.par_iter().all(|proof| {

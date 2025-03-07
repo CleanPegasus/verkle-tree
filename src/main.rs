@@ -23,6 +23,8 @@ fn test_batch_proof_verify(datas: Vec<F>, width: usize, filename : String) {
 
     let tree = VerkleTree::new(&datas, width).unwrap();
 
+    for _i in 0..6{
+
     //println!("datas len {}", datas.len());
     let indices: Vec<usize> = (0..=(datas.len()-1) as usize).choose_multiple(&mut thread_rng(),(datas.len() as f64 *(0.2))as usize); 
     //println!("indices length {}", indices.len());
@@ -33,11 +35,11 @@ fn test_batch_proof_verify(datas: Vec<F>, width: usize, filename : String) {
     let root = VerkleTree::root_commitment(&tree).unwrap();
     
     let startverify = Instant::now();
-    let verification = VerkleTree::verify_batch_proof(root, proof.clone(), width);
+    let _verification = VerkleTree::verify_batch_proof(root, proof.clone(), width);
     let endverify= startverify.elapsed();
 
     let startverify_clas = Instant::now();
-    let verification = VerkleTree::batch_verify_classic(root, proof, width);
+    let _verification = VerkleTree::batch_verify_classic(root, proof, width);
     let endverify_clas= startverify_clas.elapsed();
 
     //println!("Then the single proof");
@@ -52,24 +54,24 @@ fn test_batch_proof_verify(datas: Vec<F>, width: usize, filename : String) {
 
     let startverify_sing = Instant::now();
     for proof in all_proofs{
-        let verification = VerkleTree::verify_proof(root, &proof, width);
+        let _verification = VerkleTree::verify_proof(root, &proof, width);
     }
     let endverify_sing= startverify_sing.elapsed();
 
-    writeln!(file, "{:<15.3?} {:<15.3?} {:<15.3?} {:<15.3?} {:<15.3?}", endproof, endverify, endverify_clas, endproof_single, endverify_sing).expect("Failed to write values");
+    writeln!(file, "{:<15.1?} {:<15.1?} {:<15.1?} {:<15.1?} {:<15.1?}", endproof, endverify, endverify_clas, endproof_single, endverify_sing).expect("Failed to write values");
+    }
 }
 
 fn main (){
     println!("Hello world");
 
-    for i in 0..1 {
+    
         let mut datas: Vec<F> = Vec::new();
         let width: usize = 5;
-        for i in 0..i32::pow(width as i32, 5){
+        for _i in 0..i32::pow(width as i32, 5){
             datas.push(F::from(rand::thread_rng().gen_range(0..=datas.len()*datas.len()) as u32));
         }
         test_batch_proof_verify(datas, width, "test".to_string());
-    }
 
     
 }
