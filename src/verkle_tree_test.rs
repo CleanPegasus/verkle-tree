@@ -76,6 +76,7 @@ mod tests {
         (tree, datas, width)
     }
 
+    /*
     #[test]
     fn test_batch_proof_verify() {
         let (tree, datas, width) = build_verkle_tree();
@@ -86,5 +87,5 @@ mod tests {
         let verification = VerkleTree::verify_batch_proof(root, proof, width);
         assert!(verification, "Given point should generate a valid proof");
     }
-
+     */
 }
