@@ -24,12 +24,14 @@ fn test_batch_proof_verify(datas: Vec<F>, filename : String) {
     writeln!(file, "{:<15} {:<15} {:<15} {:<15} {:<15} {:<15}", "batch proof", "batch verify", "correct",  "Proof old", "Verify old", "correct").expect("Failed to write header");
 
     for width in vec![2,4,8,16,64]{
-
+        
     let tree = VerkleTree::new(&datas, width).unwrap();
+    
 
-    //println!("datas len {}", datas.len());
+    // //println!("datas len {}", datas.len());
     let indices: Vec<usize> = (0..=(datas.len()-1) as usize).choose_multiple(&mut thread_rng(),(datas.len() as f64 *(0.2))as usize); 
-    //println!("indices length {}", indices.len());
+    
+    
     let startproof = Instant::now();
     let proof = tree.generate_batch_proof(indices.clone(), &datas);
     let endproof= startproof.elapsed();
@@ -72,18 +74,34 @@ fn test_batch_proof_verify(datas: Vec<F>, filename : String) {
 fn main (){
     println!("Hello world");
 
+    let mut file = OpenOptions::new()
+    .create(true)
+    .write(true)
+    .truncate(true) // Clears previous content
+    .open("data")
+    .expect("Failed to open file");
+   
     
     let mut datas: Vec<F> = Vec::new();
-    let width: usize = 2;
-    for _i in 0..i32::pow(width as i32, 12){
-        datas.push(F::from(rand::thread_rng().gen_range(0..=datas.len()*datas.len()) as u32));
+    //let width: usize = 2;
+    //for _i in 0..i32::pow(width as i32, 12){
+    // for _i in 0.. 4096{
+    //     let value = F::from(rand::thread_rng().gen_range(0..=4096*4096) as u32); 
+    //     datas.push(value);
+    //     writeln!(file, "value = {:?}", value).expect("something went wrong");
+    // }
+
+    for _i in 0.. 4096{
+        let value = F::from(rand::thread_rng().gen_range(0..=4096*4096) as u32); 
+        datas.push(value);
+        writeln!(file, "value = {:?}", value).expect("something went wrong");
     }
-    println!("data {}", datas.len());
-    let tree = VerkleTree::new(&datas, width).unwrap();
+    println!("data length {}", datas.len());
+    //let tree = VerkleTree::new(&datas, width).unwrap();
     //println!("{:?}",VerkleTree::create_index_for_proof(vec![12,15,16,25], 3, 2));
 //     let batch_proof = VerkleTree::generate_batch_proof(&tree, vec![1,2,6, 12,15,16,25], &datas);
 //     println!("Finished batch proof");
-    test_batch_proof_verify(datas.clone(), "test_old".to_string());
+    test_batch_proof_verify(datas.clone(), "test_compare".to_string());
 //     let verify = VerkleTree::batch_proof_verify(tree.root_commitment().unwrap(), batch_proof, width);
 //     println!("Finised verify {:?}", verify);
     //println!("{:?}", VerkleTree::generate_batch_proof_old(&tree, vec![1,3,6,7,11,12], &datas));

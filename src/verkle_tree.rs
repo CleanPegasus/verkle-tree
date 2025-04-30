@@ -10,7 +10,10 @@ use ark_ff::PrimeField;
 use kzg_commitment::ProofError;
 use num_bigint::BigUint;
 
+use rand::distributions::Alphanumeric;
 use rand::seq::index;
+use rand::thread_rng;
+use rand::Rng;
 use recursive::recursive;
 
 use rayon::prelude::*;
@@ -18,6 +21,9 @@ use rayon::scope;
 //use rayon::ThreadPoolBuilder;
 use std::sync::{Arc, Mutex};
 
+
+use std::fs::OpenOptions;
+use std::io::Write;
 pub struct VerkleTree {
     root: Option<VerkleNode>,
     width: usize,
@@ -67,9 +73,7 @@ impl VerkleTree {
             });
         }
         let leaf_nodes = Self::create_leaf_nodes(&kzg, datas, width);
-        // for i in 0.. leaf_nodes.len(){
-        //     println!("leaf node {} of build_tree {:?}", i, leaf_nodes[i]);
-        // }
+        println!("length leaf nodes {}", leaf_nodes.len());
         let root = Self::build_tree_recursively(&kzg, &leaf_nodes, width);
 
         Ok(VerkleTree {
@@ -160,6 +164,7 @@ impl VerkleTree {
                 let next_node = children[node_to_prove_position].clone();
                 let next_node_commitment = next_node.commitment;
                 current_node = next_node;
+                //println!("In generate proofs");
                 Self::map_commitment_to_field(&next_node_commitment)
             } else {
                 *data
@@ -198,14 +203,23 @@ impl VerkleTree {
                 let node: VerkleNode = Self::find_commitment_node(&self, path);
                 let index_first_child: usize; 
                 if node.children.is_none(){
-                    let index_first_child_data = usize::pow(width, (depth+1).try_into().unwrap())/(width-1);
+                    let index_first_child_data: usize;
+                    if width == 2 {
+                        index_first_child_data = usize::pow(width, (depth+1).try_into().unwrap())/(width-1) -1
+                    }
+                    else {
+                        index_first_child_data = usize::pow(width, (depth+1).try_into().unwrap())/(width-1);
+                    }
                     let index_first_child_node = width*ind +1;
                     index_first_child = index_first_child_node-index_first_child_data;
+    
                 }
                 else {
                     index_first_child = width*ind +1;
                 }
-        
+                // println!("index parent {}, children {} index first child = {}", ind,node.children.is_some(), index_first_child);
+                //println!("index for proof = {:?}", index_for_proof[ind]);
+                
                 let proof_of_node = self.find_proof_node(node,  index_for_proof[ind].clone(), data, index_first_child).expect("failed to generate proof for node");
                 Some(proof_of_node)
             }
@@ -293,7 +307,9 @@ impl VerkleTree {
         if  node.children.is_some() {
             //let mut points = Vec::new();
             for ind in indices_to_proof.iter() {
-                let child_commitment = Self::map_commitment_to_field(&node.children.clone().unwrap()[*ind].commitment);
+                let point_1 = &node.children.clone().expect("this child was actually None")[*ind].commitment;
+                //println!("in find proof node");
+                let child_commitment = Self::map_commitment_to_field(point_1);
                 points.push((F::from(*ind as u32),child_commitment));
             }
         }
@@ -428,6 +444,7 @@ impl VerkleTree {
             scope(|s| {
                 for &ind in index_to_prove {
                     let next_node = children[ind].clone();
+                    //println!("In layer vector");
                     let next_node_commitment = Self::map_commitment_to_field(&next_node.commitment);
                     
                     // We need to proof the children later, so add them to points
@@ -665,7 +682,7 @@ impl VerkleTree {
 
 
     fn map_commitment_to_field(g1_point: &G1Affine) -> F {
-        let fq_value = g1_point.x().unwrap() + g1_point.y().unwrap();
+        let fq_value = g1_point.x().expect("its the x value") + g1_point.y().expect("its the y value");
         let fq_bigint: BigUint = fq_value.into_bigint().into();
         F::from_le_bytes_mod_order(&fq_bigint.to_bytes_le())
     }
