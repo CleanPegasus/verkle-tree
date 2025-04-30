@@ -81,20 +81,22 @@ impl VerkleTree {
             kzg,
         })
     }
-
+    
     fn create_leaf_nodes(kzg: &KZGCommitment, datas: &Vec<F>, width: usize) -> Vec<VerkleNode> {
-        datas
-            .chunks(width)
+        let result: Vec<_> = datas
+            .par_chunks(width)
             .map(|chunk| {
                 let polynomial = KZGCommitment::vector_to_polynomial(&chunk.to_vec());
                 let commitment = kzg.commit_polynomial(&polynomial);
-                VerkleNode {
+                let node = VerkleNode {
                     commitment,
                     polynomial,
                     children: None,
-                }
+                };
+                node
             })
-            .collect()
+            .collect();
+        result
     }
 
     fn build_from_nodes(
@@ -102,8 +104,8 @@ impl VerkleTree {
         nodes: &Vec<VerkleNode>,
         width: usize,
     ) -> Vec<VerkleNode> {
-        nodes
-            .chunks(width)
+        let result: Vec<_> = nodes
+        .par_chunks(width)
             .map(|chunk| {
                 let vector_commitment_mapping = chunk
                     .into_iter()
@@ -111,13 +113,15 @@ impl VerkleTree {
                     .collect();
                 let polynomial = KZGCommitment::vector_to_polynomial(&vector_commitment_mapping);
                 let commitment = kzg.commit_polynomial(&polynomial);
-                VerkleNode {
+                let node = VerkleNode {
                     commitment,
                     polynomial,
                     children: Some(chunk.to_vec()),
-                }
+                };
+                node
             })
-            .collect()
+            .collect();
+        result
     }
 
     fn build_tree_recursively(
@@ -195,7 +199,9 @@ impl VerkleTree {
         let depth = self.depth();
         let index_for_proof = VerkleTree::create_index_for_proof(index, width, self.depth());
         
-        let proofs: Vec<Option<ProofNode>> = (0.. index_for_proof.len()).into_par_iter().map(|ind| {
+        let proofs: Vec<Option<ProofNode>> = (0.. index_for_proof.len())
+        .into_par_iter()
+        .map(|ind| {
             if index_for_proof[ind]!= vec![]  {
                 let path = Self::path_to_child(ind, width);
 
@@ -294,7 +300,6 @@ impl VerkleTree {
     
     fn find_commitment_node(&self, path: Vec<usize>) -> VerkleNode{
         let mut current_node = self.root.clone().unwrap();
-        //println!("current node of rind commitment node should be the root {:?}", current_node);
         for i in path {
             current_node = current_node.children.expect("failed to find children")[i].clone();
         }
@@ -304,10 +309,8 @@ impl VerkleTree {
     fn find_proof_node (&self, node: VerkleNode, indices_to_proof: Vec<usize>, data: &Vec<F>, index_first_child: usize) ->  Result<ProofNode, VerkleTreeError>  {
         let mut points = Vec::new();
         if  node.children.is_some() {
-            //let mut points = Vec::new();
             for ind in indices_to_proof.iter() {
                 let point_1 = &node.children.clone().expect("this child was actually None")[*ind].commitment;
-                //println!("in find proof node");
                 let child_commitment = Self::map_commitment_to_field(point_1);
                 points.push((F::from(*ind as u32),child_commitment));
             }

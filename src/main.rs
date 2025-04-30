@@ -21,45 +21,34 @@ fn test_batch_proof_verify(datas: Vec<F>, filename : String) {
         .truncate(true) // Clears previous content
         .open(filename)
         .expect("Failed to open file");
-    writeln!(file, "{:<15} {:<15} {:<15} {:<15} {:<15} {:<15}", "batch proof", "batch verify", "correct",  "Proof single", "Verify single", "correct").expect("Failed to write header");
+    writeln!(file, "{:<5} {:15} {:<15} {:<15} {:<15}", "width", "tree time", "batch proof", "batch verify", "total").expect("Failed to write header");
 
     for width in vec![2,4,8,16,64]{
-        
-    let tree = VerkleTree::new(&datas, width).unwrap();
-    
+
+        println!("start build tree");
+    let starttree = Instant::now();
+        let tree = VerkleTree::new(&datas, width).unwrap();
+    let endtree = starttree.elapsed();
 
     // //println!("datas len {}", datas.len());
-    let indices: Vec<usize> = (0..=(datas.len()-1) as usize).choose_multiple(&mut thread_rng(),(datas.len() as f64 *(0.2))as usize); 
-    
-    
+    let indices: Vec<usize> = (0..=(datas.len()-1) as usize)
+        .choose_multiple(&mut thread_rng(),(datas.len() as f64 *(0.2))as usize);
+
+        println!("start proof");
     let startproof = Instant::now();
     let proof = tree.generate_batch_proof(indices.clone(), &datas);
     let endproof= startproof.elapsed();
 
     let root = VerkleTree::root_commitment(&tree).unwrap();
-    
+
+        println!("start verify");
     let startverify = Instant::now();
-    let verification = VerkleTree::batch_proof_verify(root, proof.clone(), width);
+    VerkleTree::batch_proof_verify(root, proof.clone(), width);
     let endverify= startverify.elapsed();
 
-    println!("Then the single proof");
-    let startproof_single = Instant::now();
-    let mut all_proofs = Vec::new();
-    for ind in indices{
-        all_proofs.push(tree.generate_proof(ind, &datas[ind]).unwrap());
+    writeln!(file, "{:<5} {:<15.1?} {:<15.1?} {:<15.1?} {:<15.1?}", width, endtree, endproof, endverify, endtree + endproof+endverify).expect("Failed to write values");
     }
-    let endproof_single= startproof_single.elapsed();
 
-    let root = VerkleTree::root_commitment(&tree).unwrap();
-
-    let startverify_sing = Instant::now();
-    for proof in all_proofs{
-        let _verification = VerkleTree::verify_proof(root, &proof, width);
-    }
-    let endverify_sing= startverify_sing.elapsed();
-
-    writeln!(file, "{:<15.1?} {:<15.1?} {:<15} {:<15.1?} {:<15.1?} {:<15}", endproof, endverify, verification, endproof_single, endverify_sing, verification).expect("Failed to write values");
-    }
 }
 
 
@@ -75,6 +64,7 @@ fn main (){
    
     
     let mut datas: Vec<F> = Vec::new();
+
     //let width: usize = 2;
     //for _i in 0..i32::pow(width as i32, 12){
     // for _i in 0.. 4096{
