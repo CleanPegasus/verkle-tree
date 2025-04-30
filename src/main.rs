@@ -3,9 +3,6 @@ use std::time::Instant;
 use std::fs::OpenOptions;
 use std::io::Write;
 
-use ark_bls12_381::G1Affine;
-use kzg_commitment::KZGCommitment;
-use verkle_tree::ProofNode;
 use verkle_tree::VerkleTree;
 use ark_bls12_381::Fr as F;
 use rand::Rng;
@@ -23,7 +20,7 @@ fn test_batch_proof_verify(datas: Vec<F>, filename : String) {
         .expect("Failed to open file");
     writeln!(file, "{:<5} {:15} {:<15} {:<15} {:<15}", "width", "tree time", "batch proof", "batch verify", "total").expect("Failed to write header");
 
-    for width in vec![2,4,8,16,64]{
+    for width in [2,4,8,16,64]{
 
         println!("start build tree");
     let starttree = Instant::now();
@@ -31,7 +28,7 @@ fn test_batch_proof_verify(datas: Vec<F>, filename : String) {
     let endtree = starttree.elapsed();
 
     // //println!("datas len {}", datas.len());
-    let indices: Vec<usize> = (0..=(datas.len()-1) as usize)
+    let indices: Vec<usize> = (0..=(datas.len()-1) )
         .choose_multiple(&mut thread_rng(),(datas.len() as f64 *(0.2))as usize);
 
         println!("start proof");
