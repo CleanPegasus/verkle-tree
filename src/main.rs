@@ -21,7 +21,7 @@ fn test_batch_proof_verify(datas: Vec<F>, width: usize, filename : String) {
         .truncate(true) // Clears previous content
         .open(filename)
         .expect("Failed to open file");
-    writeln!(file, "{:<15} {:<15} {:<15} {:<15} {:<15} {:<15}", "batch proof", "batch verify", "correct",  "Proof april", "Verify april", "correct").expect("Failed to write header");
+    writeln!(file, "{:<15} {:<15} {:<15} {:<15} {:<15} {:<15}", "batch proof", "batch verify", "correct",  "Proof old", "Verify old", "correct").expect("Failed to write header");
 
     let tree = VerkleTree::new(&datas, width).unwrap();
 
@@ -34,9 +34,9 @@ fn test_batch_proof_verify(datas: Vec<F>, width: usize, filename : String) {
     let proof = tree.generate_batch_proof(indices.clone(), &datas);
     let endproof= startproof.elapsed();
 
-    let startproof_april = Instant::now();
-    let proof_april = tree.generate_batch_proof_old(indices.clone(), &datas);
-    let endproof_april= startproof_april.elapsed();
+    let startproof_old = Instant::now();
+    let proof_old = tree.generate_batch_proof_old(indices.clone(), &datas);
+    let endproof_old= startproof_old.elapsed();
     
     let root = VerkleTree::root_commitment(&tree).unwrap();
     
@@ -44,9 +44,9 @@ fn test_batch_proof_verify(datas: Vec<F>, width: usize, filename : String) {
     let verification = VerkleTree::batch_proof_verify(root, proof.clone(), width);
     let endverify= startverify.elapsed();
 
-    let startverify_april = Instant::now();
-    let verification_april = VerkleTree::verify_batch_proof_old(root, proof_april.clone(), width);
-    let endverify_april= startverify_april.elapsed();
+    let startverify_old = Instant::now();
+    let verification_old = VerkleTree::verify_batch_proof_old(root, proof_old.clone(), width);
+    let endverify_old= startverify_old.elapsed();
 
     //println!("Then the single proof");
     // let startproof_single = Instant::now();
@@ -64,7 +64,7 @@ fn test_batch_proof_verify(datas: Vec<F>, width: usize, filename : String) {
     // }
     // let endverify_sing= startverify_sing.elapsed();
 
-    writeln!(file, "{:<15.1?} {:<15.1?} {:<15} {:<15.1?} {:<15.1?} {:<15}", endproof, endverify, verification, endproof_april, endverify_april, verification_april).expect("Failed to write values");
+    writeln!(file, "{:<15.1?} {:<15.1?} {:<15} {:<15.1?} {:<15.1?} {:<15}", endproof, endverify, verification, endproof_old, endverify_old, verification_old).expect("Failed to write values");
     }
 }
 
@@ -86,10 +86,10 @@ fn main (){
     test_batch_proof_verify(datas.clone(), width, "test_old".to_string());
 //     let verify = VerkleTree::batch_proof_verify(tree.root_commitment().unwrap(), batch_proof, width);
 //     println!("Finised verify {:?}", verify);
-    //println!("{:?}", VerkleTree::generate_batch_proof_april(&tree, vec![1,3,6,7,11,12], &datas));
+    //println!("{:?}", VerkleTree::generate_batch_proof_old(&tree, vec![1,3,6,7,11,12], &datas));
     //let mut tree_proofs: Vec<Vec<Vec<ProofNode>>>  = Vec::new();
     //println!("index: {:?}", VerkleTree::create_index_for_proof(vec![1,3,6,7,12], width, tree.depth(), &mut tree_proofs));
-    //let batch_proofs = VerkleTree::generate_batch_proof_april(&tree, vec![1,3,6,7,12], &datas);
+    //let batch_proofs = VerkleTree::generate_batch_proof_old(&tree, vec![1,3,6,7,12], &datas);
     // println!("proofs: {:?}", batch_proofs);
-    // println!("is correct {}",VerkleTree::verify_batch_proof_april(tree.root_commitment().unwrap(), batch_proofs, width));
+    // println!("is correct {}",VerkleTree::verify_batch_proof_old(tree.root_commitment().unwrap(), batch_proofs, width));
 }
