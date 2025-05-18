@@ -4,8 +4,6 @@ mod tests {
     use crate::VerkleTree;
     use ark_bls12_381::Fr as F;
     use rand::Rng;
-   // use random_number::random;
-    use rand::prelude::*;
 
     #[test]
     fn test_build_tree() {

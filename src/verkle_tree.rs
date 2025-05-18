@@ -1,12 +1,11 @@
-use std::{collections::HashSet,vec};
+use std::{collections::HashSet, vec};
 
-use ark_bls12_381::{Fr as F, G1Affine};
-//use ark_ec::bls12::G1Affine;
-use ark_ec::AffineRepr;
+use ark_bls12_381::{Fr as F, G1Affine, G2Affine};
+use ark_ec::{hashing::map_to_curve_hasher, AffineRepr};
 use ark_poly::univariate::DensePolynomial;
 use kzg_commitment::KZGCommitment;
 
-use ark_ff::PrimeField;
+use ark_ff::{PrimeField, Zero};
 use kzg_commitment::ProofError;
 use num_bigint::BigUint;
 
@@ -174,11 +173,16 @@ impl VerkleTree {
     }
 
 /* The next functions are to generate proofs for several indices simultaeusly  */
+
+    /*  This function returns a long vector which reads the nodes from top to bottom left to right
+        Each index contains either a proof of some children, or a None value
+    */
     pub fn generate_batch_proof (&self, index: Vec<usize>, data: &[F]) -> Vec<Option<ProofNode>> {
         assert!(data.len() % self.width == 0, "Please give a tree that is compeletly filled, i.e. log_{{width}}(data) is a natural number");
         assert!(!index.is_empty(), "Please give a non empty index");
         let width = self.width;
         let depth = self.depth();
+        // The following line creates a vector, on each index is a vector which incidates which children nodes need to be proven
         let index_for_proof = VerkleTree::create_index_for_proof(index, width, self.depth());
         
         let proofs: Vec<Option<ProofNode>> = (0.. index_for_proof.len())
@@ -233,7 +237,6 @@ impl VerkleTree {
 
         /* This creates a vector of the form:
             [[2, 0], [1, 2], [], [0]] 
-            It has lenght 2, this indicates that there are 2 layers in the tree
             The root is on index 0 and children [2,0] need to be proven.
             etc.
             */
@@ -296,7 +299,6 @@ impl VerkleTree {
                 points.push((F::from(*ind as u32), data[index_first_child + ind]));
             }
         }
-
         let proof: Result<G1Affine, ProofError> = self.kzg.generate_proof(&node.polynomial, &points);
         
         match proof {
@@ -312,27 +314,48 @@ impl VerkleTree {
         }
     }
 
-    pub fn batch_proof_verify (root: G1Affine, tree_proofs: Vec<Option<ProofNode>>, width: usize) -> bool {
-        if tree_proofs[0].is_none(){
-            println!("Tree element is None");
-            return false;
-        }
-        else if root != tree_proofs[0].as_ref().unwrap().commitment {
+    // This function computes batch proofs, is also works if the NONE values are already deleted.
+    pub fn batch_proof_verify (root: G1Affine, mut tree_proofs: Vec<Option<ProofNode>>, width: usize, indices: Vec<usize>, depth: usize, data: &[F]) -> bool {
+        assert!(tree_proofs[0].is_some());
+
+        // Check if the root is correct
+        if root != tree_proofs[0].as_ref().unwrap().commitment {
             println!("Root commitment is not correct");
             return false;
         }
-        // .all makes it such that if any verification fails, it stops immediately and returns false
+
+        // Check if the proofs are of the correct size, also works if NONE values were already deleted
+        tree_proofs.retain(|node| node.is_some());
+        // The expected length
+        let mut check_vector: Vec<Vec<usize>> = Self::create_index_for_proof(indices, width, depth);
+        check_vector.retain(|vector| !vector.is_empty());
+        if tree_proofs.len() != check_vector.len() {
+            println!("The tree proofs vector is not of the correct length");
+            return false;
+        }
+        // To find the commitment value easier, we dont save the ProofNodes but the commitments in the next vector
+        let mut commitments_vector: Vec<F> = tree_proofs.iter().map(|proof_node|
+            {
+                let node = proof_node.as_ref().unwrap();
+                Self::map_commitment_to_field(&node.commitment)
+            }
+        ).collect();
+        data.iter().for_each(|d| commitments_vector.push(*d));
+        
         let kzg = KZGCommitment::new(width + 1);
-        //let _ = Instant::now();
         tree_proofs.par_iter().all(|proof_node| {
             if let Some(node) = proof_node{
-                kzg.verify_proof(&node.commitment, &node.point, &node.proof)
+                let b1 = kzg.verify_proof(&node.commitment, &node.point, &node.proof);
+                // For simplicity we check if there is a commitment that matches
+                let b2 = node.point.par_iter().all(|point| {
+                    commitments_vector.iter().position(|n| *n == point.1).is_some()
+                });
+                b1 & b2
             }
             else {
                 true
             }
         });
-        //println!("end verify {:0.3?}", startverify.elapsed());
         true
     }
 
