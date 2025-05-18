@@ -32,7 +32,7 @@ fn test_batch_proof_verify(datas: Vec<F>, filename : String) {
     // //println!("datas len {}", datas.len());
     let indices: Vec<usize> = (0..=(datas.len()-1) )
         //.choose_multiple(&mut thread_rng(),(datas.len() as f64 *(0.2))as usize);
-        .choose_multiple(&mut thread_rng(),(2)as usize);
+        .choose_multiple(&mut thread_rng(),2_usize);
     println!("indices = {:?}", indices);
 
     let startproof = Instant::now();
@@ -49,7 +49,7 @@ fn test_batch_proof_verify(datas: Vec<F>, filename : String) {
 
 
     let startverify = Instant::now();
-    let b = VerkleTree::batch_proof_verify(root, proof.clone(), width, indices, depth, &datas_verify);
+    let b = VerkleTree::batch_proof_verify(root, proof.clone(), width, indices, depth, datas_verify);
     let endverify= startverify.elapsed();
 
     writeln!(file, "{:<5} {:<15.1?} {:<15.1?} {:<15.1?} {:<15.1?}", width, endtree, endproof, endverify, endtree + endproof+endverify).expect("Failed to write values");

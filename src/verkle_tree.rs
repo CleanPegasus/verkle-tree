@@ -1,11 +1,11 @@
 use std::{collections::HashSet, vec};
 
-use ark_bls12_381::{Fr as F, G1Affine, G2Affine};
-use ark_ec::{hashing::map_to_curve_hasher, AffineRepr};
+use ark_bls12_381::{Fr as F, G1Affine};
+use ark_ec:: AffineRepr;
 use ark_poly::univariate::DensePolynomial;
 use kzg_commitment::KZGCommitment;
 
-use ark_ff::{PrimeField, Zero};
+use ark_ff::PrimeField;
 use kzg_commitment::ProofError;
 use num_bigint::BigUint;
 
@@ -348,7 +348,7 @@ impl VerkleTree {
                 let b1 = kzg.verify_proof(&node.commitment, &node.point, &node.proof);
                 // For simplicity we check if there is a commitment that matches
                 let b2 = node.point.par_iter().all(|point| {
-                    commitments_vector.iter().position(|n| *n == point.1).is_some()
+                    commitments_vector.iter().any(|n| *n == point.1)
                 });
                 b1 & b2
             }
