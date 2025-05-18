@@ -27,6 +27,8 @@ fn test_batch_proof_verify(datas: Vec<F>, filename : String) {
         let tree = VerkleTree::new(&datas, width).unwrap();
     let endtree = starttree.elapsed();
     let depth = tree.depth();
+    println!("lets try {}", datas.len().ilog(width) -1 );
+    println!("depth = {}", depth);
     // //println!("datas len {}", datas.len());
     let indices: Vec<usize> = (0..=(datas.len()-1) )
         //.choose_multiple(&mut thread_rng(),(datas.len() as f64 *(0.2))as usize);
