@@ -3,6 +3,7 @@ use std::{collections::HashSet, vec};
 use pairing_plus::serdes::SerDes;
 
 use pointproofs::pairings::{param::paramgen_from_seed, *};
+use pointproofs::pairings::Commitment;
 use rayon::prelude::*;
 
 pub struct VerkleTree {
