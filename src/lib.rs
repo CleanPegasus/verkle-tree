@@ -6,3 +6,4 @@ pub use verkle_tree_point::{VerkleTree as VerkleTree_point, VerkleProof as Verkl
 mod verkle_tree_point;
 
 pub use pointproofs::pairings::Commitment as Commitment;
+pub use pointproofs::pairings::pointproofs_groups::COMMIT_LEN as COMMIT_LEN;
