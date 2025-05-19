@@ -1,0 +1,15 @@
+language: rust
+rust:
+  - stable
+#  - beta
+#  - nightly
+
+before_script:
+  - rustup component add clippy
+
+script:
+  - cargo clippy --all-targets --all-features -- -D warnings
+  - cargo test --release --features=group_switched
+  - cargo run --release --features=group_switched
+  - cargo test --release
+  - cargo run --release
