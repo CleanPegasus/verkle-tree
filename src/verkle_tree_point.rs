@@ -365,7 +365,7 @@ impl VerkleTree {
         true
     }
 
-    fn map_commitment_to_vec_u8(com: &Commitment) -> Vec<u8> {
+    pub fn map_commitment_to_vec_u8(com: &Commitment) -> Vec<u8> {
         let mut old_commitment_bytes: Vec<u8> = vec![];
         com.serialize(&mut old_commitment_bytes, true).unwrap();
         old_commitment_bytes
