@@ -56,8 +56,8 @@ fn paramgen_from_alpha(
     ciphersuite: Ciphersuite,
     n: usize,
 ) -> (ProverParams, VerifierParams) {
-    #[cfg(not(debug_assertions))]
-    println!("hey");
+    //#[cfg(not(debug_assertions))]
+    //println!("hey");
     let mut g1_vec = Vec::with_capacity(2 * n);
     // prover vector at index i-1 contains g1^{alpha^i} for i ranging from 1 to 2n
     // except that at index i, prover vector contains nothing useful
