@@ -1,26 +1,20 @@
 use std::{collections::HashSet, vec};
 
-use ark_bls12_381::{Fr as F, G1Affine};
-use ark_ec:: AffineRepr;
-use ark_poly::univariate::DensePolynomial;
-use kzg_commitment::KZGCommitment;
+use pairing_plus::serdes::SerDes;
 
-use ark_ff::PrimeField;
-use kzg_commitment::ProofError;
-use num_bigint::BigUint;
-
+use pointproofs::pairings::{param::paramgen_from_seed, *};
 use rayon::prelude::*;
 
 pub struct VerkleTree {
     root: Option<VerkleNode>,
     width: usize,
-    kzg: KZGCommitment,
+    pp: ProverParams,
 }
 
 #[derive(Debug, Clone)]
 struct VerkleNode {
-    commitment: G1Affine,
-    polynomial: DensePolynomial<F>,
+    commitment: Commitment,
+    values: Vec<Vec<u8>>, //should maybe be a vector 
     children: Option<Vec<VerkleNode>>,
 }
 
@@ -31,95 +25,88 @@ pub struct VerkleProof {
 
 #[derive(Debug, Clone)]
 pub struct ProofNode {
-    pub commitment: G1Affine,
-    pub proof: G1Affine,
-    pub point: Vec<(F, F)>,
+    pub commitment: Commitment, //mayb be commitment
+    pub proof: Proof, //of type Proof
+    pub indices : Vec<usize>,
+    pub values: Vec<Vec<u8>> , // just a vector  (index:usize, value: vec<vec<u8>>)
 }
 
 impl VerkleTree {
-    pub fn new(datas: &Vec<F>, width: usize) -> Result<Self, VerkleTreeError> {
-        let kzg = KZGCommitment::new(width);
-        Self::build_tree(kzg, datas, width)
+    pub fn new(datas: &Vec<Vec<u8>>, width: usize) -> Result<Self, VerkleTreeError> {
+        let (prover_params, _) =
+            paramgen_from_seed("This is our Favourite very very long Seed", 0, width).unwrap();
+        
+        Self::build_tree(prover_params, datas, width)
     }
 
-    fn build_tree(kzg: KZGCommitment, datas: &Vec<F>, width: usize) -> Result<VerkleTree, VerkleTreeError> {
+    fn build_tree(prover_params: ProverParams, datas: &Vec<Vec<u8>>, width: usize) -> Result<VerkleTree, VerkleTreeError> {
         if datas.is_empty() {
           return Err(VerkleTreeError::BuildError);
         }
         if datas.len() <= width {
-            let polynomial = KZGCommitment::vector_to_polynomial(datas);
-            let commitment = kzg.commit_polynomial(&polynomial);
+            let commitment: Commitment = Commitment::new(&prover_params, &datas).unwrap();
             return Ok(VerkleTree {
                 root: Some(VerkleNode {
                     commitment,
-                    polynomial,
+                    values: datas.to_vec(),
                     children: None,
                 }),
                 width,
-                kzg,
+                pp: prover_params,
             });
         }
-        let leaf_nodes = Self::create_leaf_nodes(&kzg, datas, width);
-        let root = Self::build_tree_recursively(&kzg, &leaf_nodes, width);
+        let leaf_nodes = Self::create_leaf_nodes(&prover_params, datas, width);
+        let root = Self::build_tree_recursively(&prover_params, &leaf_nodes, width);
 
         Ok(VerkleTree {
             root: Some(root),
             width,
-            kzg,
+            pp: prover_params,
         })
     }
     
-    fn create_leaf_nodes(kzg: &KZGCommitment, datas: &[F], width: usize) -> Vec<VerkleNode> {
+    fn create_leaf_nodes(prover_params: &ProverParams, datas: &Vec<Vec<u8>>, width: usize) -> Vec<VerkleNode> {
         datas
             .par_chunks(width)
             .map(|chunk| {
-                let polynomial = KZGCommitment::vector_to_polynomial(&chunk.to_vec());
-                let commitment = kzg.commit_polynomial(&polynomial);
+                let values = chunk.to_vec();
+                let commitment: Commitment = Commitment::new(&prover_params, &values).unwrap();
                 VerkleNode {
                     commitment,
-                    polynomial,
+                    values,
                     children: None,
                 }
             })
             .collect()
     }
 
-    fn build_from_nodes(
-        kzg: &KZGCommitment,
-        nodes: &[VerkleNode],
-        width: usize,
-    ) -> Vec<VerkleNode> {
+    fn build_from_nodes(prover_params: &ProverParams, nodes: &[VerkleNode], width: usize) -> Vec<VerkleNode> {
         nodes
         .par_chunks(width)
             .map(|chunk| {
-                let vector_commitment_mapping = chunk
+                let values: Vec<Vec<u8>> = chunk
                     .par_iter()
-                    .map(|node| Self::map_commitment_to_field(&node.commitment))
+                    .map(|node| Self::map_commitment_to_vec_u8(&node.commitment))
                     .collect();
-                let polynomial = KZGCommitment::vector_to_polynomial(&vector_commitment_mapping);
-                let commitment = kzg.commit_polynomial(&polynomial);
+                let commitment: Commitment = Commitment::new(&prover_params, &values).unwrap();
                 VerkleNode {
                     commitment,
-                    polynomial,
+                    values,
                     children: Some(chunk.to_vec()),
                 }
             })
             .collect()
     }
 
-    fn build_tree_recursively(
-        kzg: &KZGCommitment,
-        nodes: &[VerkleNode],
-        width: usize,
-    ) -> VerkleNode {
+    fn build_tree_recursively(prover_params: &ProverParams, nodes: &[VerkleNode], width: usize) -> VerkleNode {
         if nodes.len() == 1 {
             return nodes[0].clone();
         }
-        let next_level = Self::build_from_nodes(kzg, nodes, width);
-        Self::build_tree_recursively(kzg, &next_level, width)
+        let next_level = Self::build_from_nodes(prover_params, nodes, width);
+        Self::build_tree_recursively(prover_params, &next_level, width)
     }
 
-    pub fn generate_proof(&self, index: usize, data: &F) -> Result<VerkleProof, VerkleTreeError> {
+    pub fn generate_proof(&self, index: usize, data: &Vec<u8>) -> Result<VerkleProof, VerkleTreeError> {
         let mut node_positions = Vec::<usize>::new();
         let mut value_positions = Vec::<usize>::new();
 
@@ -142,27 +129,27 @@ impl VerkleTree {
 
         let mut proofs = Vec::<ProofNode>::new();
         for (i, &_node_position) in node_positions.iter().enumerate() {
-            let current_commitment = current_node.commitment;
-            let current_polynomial = current_node.polynomial.clone();
+            let current_commitment = current_node.commitment.clone();
+            let current_values = current_node.values.clone();
             let node_to_prove_position = value_positions[i];
             let data_to_prove = if let Some(children) = current_node.children {
                 let next_node = children[node_to_prove_position].clone();
-                let next_node_commitment = next_node.commitment;
-                current_node = next_node;
-                Self::map_commitment_to_field(&next_node_commitment)
+                let next_node_commitment = next_node.commitment.clone();
+                current_node = next_node.clone();
+                Self::map_commitment_to_vec_u8(&next_node_commitment)
             } else {
-                *data
+                data.to_vec()
             };
 
-            let points = vec![(F::from(node_to_prove_position as u32), data_to_prove)];
-            let proof = self.kzg.generate_proof(&current_polynomial, &points);
-
+            //let points: Vec<(usize, Vec<u8>)> = vec![(node_to_prove_position, data_to_prove)];
+            let proof = Proof::new(&self.pp, &current_values, index);
             match proof {
                 Ok(proof) => {
                     proofs.push(ProofNode {
                         commitment: current_commitment,
                         proof,
-                        point: points,
+                        indices: vec![node_to_prove_position],
+                        values: vec![data_to_prove],
                     });
                 }
                 Err(_) => return Err(VerkleTreeError::ProofGenerateError),
@@ -177,7 +164,7 @@ impl VerkleTree {
     /*  This function returns a long vector which reads the nodes from top to bottom left to right
         Each index contains either a proof of some children, or a None value
     */
-    pub fn generate_batch_proof (&self, index: Vec<usize>, data: &[F]) -> Vec<Option<ProofNode>> {
+    pub fn generate_batch_proof (&self, index: Vec<usize>, data: &Vec<Vec<u8>>) -> Vec<Option<ProofNode>> {
         assert!(data.len() % self.width == 0, "Please give a tree that is compeletly filled, i.e. log_{{width}}(data) is a natural number");
         assert!(!index.is_empty(), "Please give a non empty index");
         let width = self.width;
@@ -285,28 +272,29 @@ impl VerkleTree {
         current_node
     }
 
-    fn find_proof_node (&self, node: VerkleNode, indices_to_proof: Vec<usize>, data: &[F], index_first_child: usize) ->  Result<ProofNode, VerkleTreeError>  {
-        let mut points = Vec::new();
-        if  node.children.is_some() {
-            for ind in indices_to_proof {
-                let point_1 = &node.children.clone().expect("this child was actually None")[ind].commitment;
-                let child_commitment = Self::map_commitment_to_field(point_1);
-                points.push((F::from(ind as u32),child_commitment));
+    fn find_proof_node (&self, node: VerkleNode, indices_to_proof: Vec<usize>, data: &Vec<Vec<u8>>, index_first_child: usize) ->  Result<ProofNode, VerkleTreeError>  {
+        //let mut indices: Vec<usize> = Vec::new();
+        let mut values: Vec<Vec<u8>> = Vec::new();
+        if  let Some(child) = node.children {
+            for child_node in child {
+                let com = child_node.commitment;
+                let child_commitment = Self::map_commitment_to_vec_u8(&com);
+                values.push(child_commitment);
             }
         }
         else {
-            for ind in indices_to_proof {
-                points.push((F::from(ind as u32), data[index_first_child + ind]));
+            for ind in 0 .. self.width {
+                values.push(data[index_first_child + ind].clone());
             }
         }
-        let proof: Result<G1Affine, ProofError> = self.kzg.generate_proof(&node.polynomial, &points);
-        
+        let proof = Proof::batch_new_aggregated(&self.pp, &node.commitment, &values, &indices_to_proof);
         match proof {
             Ok(proof) => {
                 let proof_node = ProofNode {
                     commitment: node.commitment,
                     proof,
-                    point: points,
+                    indices: indices_to_proof,
+                    values,
                 };
                 Ok(proof_node)
             }
@@ -315,7 +303,7 @@ impl VerkleTree {
     }
 
     // This function computes batch proofs, is also works if the NONE values are already deleted.
-    pub fn batch_proof_verify (root: G1Affine, mut tree_proofs: Vec<Option<ProofNode>>, width: usize, indices: Vec<usize>, depth: usize, data: Vec<F>) -> bool {
+    pub fn batch_proof_verify (root: Commitment, mut tree_proofs: Vec<Option<ProofNode>>, width: usize, indices: Vec<usize>, depth: usize, data: Vec<Vec<u8>>) -> bool {
         assert!(tree_proofs[0].is_some());
 
         // Check if the root is correct
@@ -334,21 +322,22 @@ impl VerkleTree {
             return false;
         }
         // To find the commitment value easier, we dont save the ProofNodes but the commitments in the next vector
-        let mut commitments_vector: Vec<F> = tree_proofs.iter().map(|proof_node|
+        let mut commitments_vector: Vec<Vec<u8>> = tree_proofs.iter().map(|proof_node|
             {
                 let node = proof_node.as_ref().unwrap();
-                Self::map_commitment_to_field(&node.commitment)
+                Self::map_commitment_to_vec_u8(&node.commitment)
             }
         ).collect();
-        data.iter().for_each(|d| commitments_vector.push(*d));
+        data.iter().for_each(|d| commitments_vector.push(d.to_vec()));
         
-        let kzg = KZGCommitment::new(width + 1);
+        let (_, verifier_params) =
+            paramgen_from_seed("This is our Favourite very very long Seed", 0, width).unwrap();
         tree_proofs.par_iter().all(|proof_node| {
             if let Some(node) = proof_node{
-                let b1 = kzg.verify_proof(&node.commitment, &node.point, &node.proof);
+                let b1 = Proof::same_commit_batch_verify(&node.proof, &verifier_params, &node.commitment, &node.indices, &node.values);
                 // For simplicity we check if there is a commitment that matches
-                let b2 = node.point.par_iter().all(|point| {
-                    commitments_vector.iter().any(|n| *n == point.1)
+                let b2 = node.values.par_iter().all(|point| {
+                    commitments_vector.par_iter().any(|n| n == point)
                 });
                 b1 & b2
             }
@@ -360,25 +349,26 @@ impl VerkleTree {
     }
 
 
-    pub fn verify_proof(root: G1Affine, verkle_proof: &VerkleProof, width: usize) -> bool {
-        let proof_root = verkle_proof.proofs[0].commitment;
-        if proof_root != root {
+    pub fn verify_proof(root: Commitment, verkle_proof: &VerkleProof, width: usize) -> bool {
+        if verkle_proof.proofs[0].commitment != root {
             return false;
         }
-        let kzg = KZGCommitment::new(width+1);
+         let (_, verifier_params) =
+            paramgen_from_seed("This is our Favourite very very long Seed", 0, width).unwrap();
         let verkle_proofs = verkle_proof.proofs.clone();
-        for proof in verkle_proofs {
-            if !kzg.verify_proof(&proof.commitment, &proof.point, &proof.proof){
+        for node in verkle_proofs {
+            if !Proof::verify(&node.proof, &verifier_params, &node.commitment, &node.values[0], node.indices[0]){
                 return  false;
             }
         }
         true
     }
 
-    fn map_commitment_to_field(g1_point: &G1Affine) -> F {
-        let fq_value = g1_point.x().expect("its the x value") + g1_point.y().expect("its the y value");
-        let fq_bigint: BigUint = fq_value.into_bigint().into();
-        F::from_le_bytes_mod_order(&fq_bigint.to_bytes_le())
+    fn map_commitment_to_vec_u8(com: &Commitment) -> Vec<u8> {
+        let mut old_commitment_bytes: Vec<u8> = vec![];
+        com.serialize(&mut old_commitment_bytes, true).unwrap();
+        old_commitment_bytes
+        //Vec::new()
     }
 
     pub fn depth(&self) -> usize {
@@ -392,12 +382,12 @@ impl VerkleTree {
         depth
     }
 
-    pub fn root_commitment(&self) -> Option<G1Affine> {
+    pub fn root_commitment(&self) -> Option<Commitment> {
         // match &self.root {
         //     None => None,
         //     Some(verkle_node) => Some(verkle_node.commitment),
         // }
-        self.root.as_ref().map(|verkle_node| verkle_node.commitment)
+        self.root.as_ref().map(|verkle_node| verkle_node.commitment.clone())
     }
 }
 

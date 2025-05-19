@@ -21,3 +21,5 @@ num-bigint = "0.4.6"
 recursive = "0.1.1"
 random-number = "0.1.9"
 rayon = "1.10.0"
+pointproofs = { path = "/Users/tokoster/Documents/pointproofs"}
+pairing-plus = { git = "https://github.com/algorand/pairing-plus", branch = "master" }
