@@ -231,6 +231,7 @@ impl VerkleTree {
         let mut tree_path: Vec<Vec<usize>>  = Vec::new();
         let mut indexes = index.clone();
         for level in 1.. (depth+1){
+            println!("we get in the level loop");
             let data_level_above = width.pow((depth+1-level) as u32);
             // This creates for each parent node an empty vector
             let mut level_above: Vec<Vec<usize>> = vec![vec![]; data_level_above];
@@ -260,6 +261,9 @@ impl VerkleTree {
                 }
             }
             tree_path.push( node_root);
+        }
+        else {
+            tree_path = vec![index];
         }
         println!("tree path {:?}", tree_path);
         tree_path.reverse();
