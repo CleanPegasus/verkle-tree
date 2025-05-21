@@ -231,7 +231,6 @@ impl VerkleTree {
         let mut tree_path: Vec<Vec<usize>>  = Vec::new();
         let mut indexes = index.clone();
         for level in 1.. (depth+1){
-            println!("we get in the level loop");
             let data_level_above = width.pow((depth+1-level) as u32);
             // This creates for each parent node an empty vector
             let mut level_above: Vec<Vec<usize>> = vec![vec![]; data_level_above];
@@ -252,7 +251,6 @@ impl VerkleTree {
                 
         }
         // We need to add the root manually
-        //println!("{:?}", tree_path);
         if depth != 0 {
             let mut node_root: Vec<usize> = Vec::new();
             for child in 0.. width{
@@ -263,12 +261,10 @@ impl VerkleTree {
             tree_path.push( node_root);
         }
         else {
+            // If the tree has 1 layer, the "root" is just the commitment of all indices
             tree_path = vec![index];
         }
-        println!("tree path {:?}", tree_path);
         tree_path.reverse();
-        //println!("tree proofs {:?}", tree_proofs);
-        //println!("tree path{:?}", tree_path);
         tree_path
     }
     

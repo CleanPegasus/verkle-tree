@@ -263,17 +263,20 @@ impl VerkleTree {
                 
         }
         // We need to add the root manually
-        //println!("{:?}", tree_path);
-        let mut node_root: Vec<usize> = Vec::new();
-        for child in 0.. width{
-            if !tree_path[tree_path.len()- child-1].is_empty(){
-                node_root.push(child);
+        if depth != 0 {
+            let mut node_root: Vec<usize> = Vec::new();
+            for child in 0.. width{
+                if !tree_path[tree_path.len()- child-1].is_empty(){
+                    node_root.push(child);
+                }
             }
+            tree_path.push( node_root);
         }
-        tree_path.push( node_root);
+        else {
+            // If the tree has 1 layer, the "root" is just the commitment of all indices
+            tree_path = vec![index];
+        }
         tree_path.reverse();
-        //println!("tree proofs {:?}", tree_proofs);
-        //println!("tree path{:?}", tree_path);
         tree_path
     }
     
