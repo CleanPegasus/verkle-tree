@@ -252,6 +252,7 @@ impl VerkleTree {
         }
         // We need to add the root manually
         //println!("{:?}", tree_path);
+        println!("depth {}", depth);
         let mut node_root: Vec<usize> = Vec::new();
         for child in 0.. width{
             if !tree_path[tree_path.len()- child-1].is_empty(){
