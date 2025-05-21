@@ -261,6 +261,7 @@ impl VerkleTree {
             }
             tree_path.push( node_root);
         }
+        println!("tree path {:?}", tree_path);
         tree_path.reverse();
         //println!("tree proofs {:?}", tree_proofs);
         //println!("tree path{:?}", tree_path);
