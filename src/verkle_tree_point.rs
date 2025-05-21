@@ -308,7 +308,6 @@ impl VerkleTree {
 
     // This function computes batch proofs, is also works if the NONE values are already deleted.
     pub fn batch_proof_verify (root: Commitment, mut tree_proofs: Vec<Option<ProofNode>>, width: usize, indices: Vec<usize>, depth: usize, data: Vec<Vec<u8>>) -> bool {
-        println!("tree proofs {:?}", tree_proofs);
         assert!(tree_proofs[0].is_some());
 
         // Check if the root is correct
